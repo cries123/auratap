@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/auralogo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aura Tap | NFC Cards and Wristbands for Modern Networking</title>
+    <meta
+      name="description"
+      content="Aura Tap helps professionals and teams share contact info instantly with NFC cards and wristbands. Serving clients nationwide with setup and support."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <link rel="canonical" href="%VITE_PUBLIC_SITE_URL%/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Aura Tap | NFC Cards and Wristbands for Modern Networking" />
+    <meta
+      property="og:description"
+      content="Upgrade from paper business cards to tap-to-share NFC products for teams, creators, and local businesses."
+    />
+    <meta property="og:url" content="%VITE_PUBLIC_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_PUBLIC_SITE_URL%/product-cards.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Aura Tap | NFC Cards and Wristbands for Modern Networking" />
+    <meta
+      name="twitter:description"
+      content="Tap-to-share networking products with onboarding support for individuals and teams."
+    />
+    <meta name="twitter:image" content="%VITE_PUBLIC_SITE_URL%/product-cards.png" />
+
+    <script>
+      (function () {
+        var gaId = '%VITE_GA_MEASUREMENT_ID%'
+
+        if (!gaId || gaId.indexOf('%') !== -1 || !/^G-[A-Z0-9]+$/i.test(gaId)) {
+          return
+        }
+
+        window.dataLayer = window.dataLayer || []
+        function gtag() {
+          window.dataLayer.push(arguments)
+        }
+        window.gtag = gtag
+        gtag('js', new Date())
+        gtag('config', gaId)
+
+        var script = document.createElement('script')
+        script.async = true
+        script.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId
+        document.head.appendChild(script)
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
