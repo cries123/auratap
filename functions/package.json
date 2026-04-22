@@ -1,7 +1,6 @@
 {
   "name": "auratap-functions",
   "description": "Aura Tap backend API on Firebase Functions",
-  "type": "module",
   "engines": {
     "node": "20"
   },

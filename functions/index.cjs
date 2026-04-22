@@ -19,9 +19,9 @@ const {
   getPublicProfileBySlug,
   updateMemberProfile,
   replaceMemberLinks,
-} = require('./db')
-const { sendNewMessageNotification } = require('./emails')
-const { sendTelegramMessage } = require('./telegram')
+} = require('./db.cjs')
+const { sendNewMessageNotification } = require('./emails.cjs')
+const { sendTelegramMessage } = require('./telegram.cjs')
 
 const app = express()
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'aurataps2026'
