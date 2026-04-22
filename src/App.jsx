@@ -6,9 +6,9 @@ const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'sales@auratap.com'
 const PHONE_NUMBER = import.meta.env.VITE_PHONE_NUMBER || '8059033231'
 const BOOKING_URL = import.meta.env.VITE_BOOKING_URL || '/contact'
 const BUSINESS_ADDRESS = import.meta.env.VITE_BUSINESS_ADDRESS || 'Nationwide'
-const CHAT_API_BASE = import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:3001'
-const ADMIN_API_BASE = import.meta.env.VITE_ADMIN_API_BASE || 'http://localhost:3001'
-const MEMBER_API_BASE = import.meta.env.VITE_MEMBER_API_BASE || 'http://localhost:3001'
+const CHAT_API_BASE = import.meta.env.VITE_CHAT_API_BASE || (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://localhost:3001')
+const ADMIN_API_BASE = import.meta.env.VITE_ADMIN_API_BASE || (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://localhost:3001')
+const MEMBER_API_BASE = import.meta.env.VITE_MEMBER_API_BASE || (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://localhost:3001')
 const ADMIN_TOKEN_KEY = 'auratap_admin_token'
 const MEMBER_TOKEN_KEY = 'auratap_member_token'
 
