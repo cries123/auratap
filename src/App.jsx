@@ -1,17 +1,66 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link, NavLink, Route, Routes } from 'react-router-dom'
+import { Link, NavLink, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import './App.css'
 
 const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'sales@auratap.com'
 const PHONE_NUMBER = import.meta.env.VITE_PHONE_NUMBER || '8059033231'
-const BOOKING_URL = import.meta.env.VITE_BOOKING_URL || '/#/contact'
+const BOOKING_URL = import.meta.env.VITE_BOOKING_URL || '/contact'
 const BUSINESS_ADDRESS = import.meta.env.VITE_BUSINESS_ADDRESS || 'Nationwide'
 const CHAT_API_BASE = import.meta.env.VITE_CHAT_API_BASE || 'http://localhost:3001'
 const ADMIN_API_BASE = import.meta.env.VITE_ADMIN_API_BASE || 'http://localhost:3001'
+const MEMBER_API_BASE = import.meta.env.VITE_MEMBER_API_BASE || 'http://localhost:3001'
 const ADMIN_TOKEN_KEY = 'auratap_admin_token'
+const MEMBER_TOKEN_KEY = 'auratap_member_token'
+
+const RESERVED_PATHS = new Set([
+  '',
+  'how-it-works',
+  'testimonials',
+  'pricing',
+  'contact',
+  'privacy',
+  'terms',
+  'warranty',
+  'admin',
+  'member',
+])
+
+const AURA_PROFILE_PAGES = {
+  jay: {
+    name: 'Jay',
+    headline: 'Founder of Aura Taps',
+    subheadline: 'Tap to connect.',
+    avatarSrc: '/product-test.png',
+    links: [
+      { label: 'Book a Consultation', href: '/contact' },
+      { label: 'Buy an Aura Tap Card', href: '/pricing' },
+      { label: 'My Portfolio', href: 'https://aurataps.net' },
+      { label: 'Leave a Google Review', href: 'https://g.page/r/Cf0V3l8f8jY7EAE/review' },
+    ],
+  },
+  placeholder: {
+    name: 'Your Name',
+    headline: 'Aura Tap Profile',
+    subheadline: 'Add your links and contact buttons here.',
+    avatarSrc: '/auralogo.png',
+    links: [
+      { label: 'Book a Consultation', href: '/contact' },
+      { label: 'Buy an Aura Tap Card', href: '/pricing' },
+      { label: 'My Portfolio', href: 'https://aurataps.net' },
+      { label: 'Leave a Google Review', href: 'https://g.page/r/Cf0V3l8f8jY7EAE/review' },
+    ],
+  },
+}
 
 function getAdminAuthHeaders() {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+  return token
+    ? { Authorization: `Bearer ${token}` }
+    : {}
+}
+
+function getMemberAuthHeaders() {
+  const token = localStorage.getItem(MEMBER_TOKEN_KEY)
   return token
     ? { Authorization: `Bearer ${token}` }
     : {}
@@ -31,6 +80,9 @@ function trackEvent(eventName, payload = {}) {
 }
 
 function SiteHeader() {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const close = () => setMenuOpen(false)
+
   return (
     <header className="top-nav panel">
       <p className="brand" aria-label="Aura Tap">
@@ -38,32 +90,183 @@ function SiteHeader() {
         <span className="brand-wordmark">AURA TAP</span>
         <span className="sr-only">Aura Tap</span>
       </p>
-      <div className="top-nav-right">
+
+      {/* Desktop nav */}
+      <div className="top-nav-right top-nav-desktop">
         <a className="top-phone" href={`tel:${PHONE_NUMBER}`}>
           Prefer to talk? {PHONE_NUMBER}
         </a>
         <nav>
-          <NavLink to="/" end>
-            Home
-          </NavLink>
+          <NavLink to="/" end>Home</NavLink>
           <NavLink to="/how-it-works">How It Works</NavLink>
           <NavLink to="/testimonials">Testimonials</NavLink>
           <NavLink to="/pricing">Pricing</NavLink>
           <NavLink to="/warranty">Warranty</NavLink>
-          <NavLink
-            to="/contact"
-            onClick={() => trackEvent('contact_click', { source: 'top_nav' })}
-          >
+          <NavLink to="/member">Member Portal</NavLink>
+          <NavLink to="/contact" onClick={() => trackEvent('contact_click', { source: 'top_nav' })}>
             Contact Us
           </NavLink>
         </nav>
       </div>
+
+      {/* Mobile hamburger button */}
+      <button
+        className="nav-hamburger"
+        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((o) => !o)}
+      >
+        <span className={`ham-line${menuOpen ? ' open' : ''}`} />
+        <span className={`ham-line${menuOpen ? ' open' : ''}`} />
+        <span className={`ham-line${menuOpen ? ' open' : ''}`} />
+      </button>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <nav className="mobile-nav-menu" onClick={close}>
+          <NavLink to="/" end>Home</NavLink>
+          <NavLink to="/how-it-works">How It Works</NavLink>
+          <NavLink to="/testimonials">Testimonials</NavLink>
+          <NavLink to="/pricing">Pricing</NavLink>
+          <NavLink to="/warranty">Warranty</NavLink>
+          <NavLink to="/member">Member Portal</NavLink>
+          <NavLink to="/contact" onClick={() => trackEvent('contact_click', { source: 'top_nav' })}>
+            Contact Us
+          </NavLink>
+          <a className="top-phone mobile-phone-link" href={`tel:${PHONE_NUMBER}`}>
+            📞 {PHONE_NUMBER}
+          </a>
+        </nav>
+      )}
     </header>
+  )
+}
+
+function AuraProfilePage() {
+  const { profileSlug = '' } = useParams()
+  const key = profileSlug.toLowerCase()
+  const [profile, setProfile] = useState(null)
+  const [status, setStatus] = useState('loading')
+
+  useEffect(() => {
+    let isMounted = true
+
+    if (RESERVED_PATHS.has(key)) {
+      setStatus('not-found')
+      return () => {
+        isMounted = false
+      }
+    }
+
+    async function loadProfile() {
+      try {
+        const response = await fetch(`${MEMBER_API_BASE}/api/public/profile/${encodeURIComponent(key)}`)
+        if (!isMounted) {
+          return
+        }
+
+        if (response.ok) {
+          const data = await response.json()
+          setProfile({
+            name: data.displayName,
+            headline: data.headline,
+            subheadline: data.subheadline,
+            avatarSrc: data.avatarSrc || '/auralogo.png',
+            links: Array.isArray(data.links) ? data.links : [],
+          })
+          setStatus('ready')
+          return
+        }
+      } catch (error) {
+        console.error('Unable to load public profile:', error)
+      }
+
+      const fallback = AURA_PROFILE_PAGES[key]
+      if (fallback) {
+        setProfile(fallback)
+        setStatus('ready')
+      } else {
+        setStatus('not-found')
+      }
+    }
+
+    loadProfile()
+
+    return () => {
+      isMounted = false
+    }
+  }, [key])
+
+  if (status === 'loading') {
+    return (
+      <main className="profile-page-shell">
+        <section className="profile-page-card">
+          <p>Loading profile...</p>
+        </section>
+      </main>
+    )
+  }
+
+  if (!profile || status === 'not-found') {
+    return (
+      <main className="profile-page-shell">
+        <section className="profile-page-card">
+          <h1>Profile not found</h1>
+          <p>This Aura Tap page is not active yet.</p>
+          <Link to="/" className="profile-home-link">
+            Return to Aura Tap
+          </Link>
+        </section>
+      </main>
+    )
+  }
+
+  return (
+    <main className="profile-page-shell">
+      <section className="profile-page-content" aria-label={`${profile.name} profile links`}>
+        <img
+          src={profile.avatarSrc}
+          alt={`${profile.name} profile avatar`}
+          className="profile-avatar"
+        />
+        <h1 className="profile-name">{profile.name}</h1>
+        <p className="profile-headline">{profile.headline} <span aria-hidden="true">⚡</span></p>
+        <p className="profile-subheadline">{profile.subheadline}</p>
+
+        <div className="profile-link-list">
+          {profile.links.map((item) => {
+            const isExternal = item.href.startsWith('http')
+            return isExternal ? (
+              <a
+                key={item.label}
+                className="profile-link-button"
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {item.label}
+              </a>
+            ) : (
+              <Link key={item.label} className="profile-link-button" to={item.href}>
+                {item.label}
+              </Link>
+            )
+          })}
+        </div>
+
+        <p className="profile-powered-by">
+          <span aria-hidden="true">⚡</span>
+          {' '}
+          Powered by Aura Taps
+        </p>
+      </section>
+    </main>
   )
 }
 
 function HomePage() {
   const [showRoiPage, setShowRoiPage] = useState(false)
+  const [isHeroDemoActive, setIsHeroDemoActive] = useState(false)
 
   const benefits = [
     {
@@ -230,32 +433,48 @@ function HomePage() {
         </div>
 
         <div className="hero-visual">
-          <div className="hero-proof-card">
-            <p className="hero-proof-label">Premium product presentation</p>
-            <div className="hero-product-stack">
-              <div className="hero-stack-card hero-stack-card-dark">
-                <img
-                  src="/product-cards.png"
-                  alt="Aura NFC Cards"
-                  className="hero-stack-image"
-                />
+          <div
+            className={`hero-tap-demo${isHeroDemoActive ? ' is-active' : ''}`}
+            onMouseEnter={() => setIsHeroDemoActive(true)}
+            onMouseLeave={() => setIsHeroDemoActive(false)}
+            onClick={() => setIsHeroDemoActive((current) => !current)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                setIsHeroDemoActive((current) => !current)
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label="Interactive tap demo"
+          >
+            <p className="hero-proof-label">Live Tap Preview</p>
+            <div className="hero-demo-shell">
+              <div className="hero-phone" role="img" aria-label="Phone preview of Aura Tap profile">
+                <div className="hero-phone-notch" />
+                <div className="hero-phone-screen">
+                  <div className="hero-screen-placeholder" aria-hidden="true">
+                    <span className="hero-placeholder-avatar" />
+                    <span className="hero-placeholder-line hero-placeholder-line-wide" />
+                    <span className="hero-placeholder-line" />
+                    <span className="hero-placeholder-pill" />
+                    <span className="hero-placeholder-pill" />
+                    <span className="hero-placeholder-pill" />
+                  </div>
+                  <img
+                    src="/jay-profile-preview.png"
+                    alt="Profile page shown after tapping Aura card"
+                    className="hero-phone-screen-image"
+                  />
+                </div>
               </div>
-              <div className="hero-stack-card hero-stack-card-light">
-                <img
-                  src="/product-wristband.png"
-                  alt="Aura NFC Wristband"
-                  className="hero-stack-image"
-                />
+
+              <div className="hero-nfc-card" aria-hidden="true">
+                <span className="hero-nfc-card-label">AURA</span>
               </div>
             </div>
-            <figure className="hero-action-inline">
-              <img
-                src="/product-action.png"
-                alt="Aura Tap in real networking use"
-                className="hero-action-image"
-              />
-              <figcaption>Real-world tap moment that instantly explains the product.</figcaption>
-            </figure>
+
+            <p className="hero-demo-hint">Hover over this area to tap ↑</p>
           </div>
         </div>
       </header>
@@ -537,7 +756,7 @@ function HowItWorksPage() {
         </div>
         <figure className="tap-demo-photo-frame" aria-label="Aura Tap profile preview after card tap">
           <img
-            src="/tap-demo-showcase.png"
+            src="/jay-profile-preview.png"
             alt="Aura card and phone profile preview after tapping"
             className="tap-demo-photo"
           />
@@ -844,9 +1063,9 @@ function PricingPage() {
     <>
       <SubpageHero
         eyebrow="Pricing"
-        title="Transparent Pricing and Measurable ROI"
-        subtitle="Transparent pricing built for solo professionals, teams, and enterprise rollouts."
-        chips={['One-time pricing', '$99 setup included in bundles', 'No monthly platform fee']}
+        title="Clear Pricing. Strong Return on Investment."
+        subtitle="Simple one-time pricing designed for solo operators, growing teams, and enterprise deployments."
+        chips={['One-time purchase', '$99 setup included with bundles', 'No recurring platform fees']}
         mediaImageSrc="/product-pricing.png"
         mediaImageAlt="Aura Tap pricing showcase"
         mediaText="Professional-grade NFC cards and wristbands prepared for scalable team deployment."
@@ -1316,8 +1535,13 @@ function ChatWidget() {
   }))
   const [inputValue, setInputValue] = useState(() => persistedState?.inputValue || '')
   const [isLoading, setIsLoading] = useState(false)
+  const messagesRef = useRef(messages)
 
   const CHAT_API = `${CHAT_API_BASE}/api/chat`
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1334,6 +1558,90 @@ function ChatWidget() {
 
     window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(stateToPersist))
   }, [isOpen, showForm, messages, formData, inputValue])
+
+  useEffect(() => {
+    if (showForm) {
+      return undefined
+    }
+
+    let cancelled = false
+
+    const syncAdminResponses = async () => {
+      const currentMessages = messagesRef.current
+      const messageIds = [...new Set(
+        currentMessages
+          .filter((msg) => msg.sender === 'user' && Number.isInteger(msg.id))
+          .map((msg) => msg.id)
+      )]
+
+      if (!messageIds.length) {
+        return
+      }
+
+      try {
+        const threads = await Promise.all(
+          messageIds.map(async (messageId) => {
+            const response = await fetch(`${CHAT_API}/message/${messageId}`)
+            if (!response.ok) {
+              return null
+            }
+            return response.json()
+          })
+        )
+
+        if (cancelled) {
+          return
+        }
+
+        const incoming = []
+        threads.forEach((thread, index) => {
+          if (!thread || !Array.isArray(thread.responses)) {
+            return
+          }
+
+          const rootMessageId = messageIds[index]
+          thread.responses.forEach((reply) => {
+            incoming.push({
+              id: `admin-${rootMessageId}-${reply.id}`,
+              text: reply.adminResponse,
+              sender: 'bot',
+              timestamp: reply.createdAt || new Date().toISOString(),
+            })
+          })
+        })
+
+        if (!incoming.length) {
+          return
+        }
+
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((msg) => String(msg.id)))
+          const nextMessages = [...prev]
+
+          incoming.forEach((msg) => {
+            if (!existingIds.has(String(msg.id))) {
+              existingIds.add(String(msg.id))
+              nextMessages.push(msg)
+            }
+          })
+
+          return nextMessages
+        })
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error syncing chat responses:', error)
+        }
+      }
+    }
+
+    void syncAdminResponses()
+    const intervalId = window.setInterval(syncAdminResponses, 3500)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [CHAT_API, showForm])
 
   function handleFormChange(e) {
     const { name, value } = e.target
@@ -1407,7 +1715,7 @@ function ChatWidget() {
         setTimeout(() => {
           const botResponse = {
             id: Date.now(),
-            text: 'Thanks for your message! We\'ll respond shortly. You can also check your email for updates.',
+            text: 'Thanks for your message! We\'ll respond shortly right here in this chat.',
             sender: 'bot',
             timestamp: new Date().toISOString(),
           }
@@ -1533,17 +1841,20 @@ function Footer() {
           <span>12-month warranty</span>
         </div>
       </div>
-      <div className="footer-links">
-        <a href={`mailto:${CONTACT_EMAIL}`}>Email</a>
-        <a href={`tel:${PHONE_NUMBER}`}>Call</a>
-        <Link to="/pricing">Pricing</Link>
-        <Link to="/contact">Contact</Link>
-      </div>
-      <div className="footer-links">
-        <Link to="/privacy">Privacy Policy</Link>
-        <Link to="/terms">Terms</Link>
-        <Link to="/warranty">Warranty</Link>
-        <Link to="/admin" className="footer-admin-link">Admin</Link>
+      <div className="footer-nav-group">
+        <div className="footer-links">
+          <a href={`mailto:${CONTACT_EMAIL}`}>Email</a>
+          <a href={`tel:${PHONE_NUMBER}`}>Call</a>
+          <Link to="/pricing">Pricing</Link>
+          <Link to="/contact">Contact</Link>
+        </div>
+        <div className="footer-links">
+          <Link to="/privacy">Privacy Policy</Link>
+          <Link to="/terms">Terms</Link>
+          <Link to="/warranty">Warranty</Link>
+          <Link to="/member" className="footer-admin-link">Member</Link>
+          <Link to="/admin" className="footer-admin-link">Admin</Link>
+        </div>
       </div>
     </footer>
   )
@@ -1779,8 +2090,13 @@ function AdminPageContent({ onSessionExpired }) {
       return
     }
 
+    const search = typeof window !== 'undefined' ? window.location.search : ''
     const hash = typeof window !== 'undefined' ? window.location.hash : ''
-    const queryString = hash.includes('?') ? hash.split('?')[1] : ''
+    const queryString = search.startsWith('?')
+      ? search.slice(1)
+      : hash.includes('?')
+        ? hash.split('?')[1]
+        : ''
     const params = new URLSearchParams(queryString)
     const linkedMessageId = params.get('messageId')
 
@@ -1973,7 +2289,461 @@ function AdminPage() {
   return <AdminPageContent onSessionExpired={handleSessionExpired} />
 }
 
+function MemberAuthPage({ onAuthenticated }) {
+  const [mode, setMode] = useState('login')
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    displayName: '',
+    slug: '',
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  function updateField(event) {
+    const { name, value } = event.target
+    if (name === 'slug') {
+      const normalized = value
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+
+      setForm((current) => ({ ...current, [name]: normalized }))
+      return
+    }
+
+    setForm((current) => ({ ...current, [name]: value }))
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setIsSubmitting(true)
+
+    const endpoint = mode === 'login' ? '/api/member/login' : '/api/member/register'
+    const payload = mode === 'login'
+      ? { email: form.email, password: form.password }
+      : {
+        email: form.email,
+        password: form.password,
+        displayName: form.displayName,
+        slug: form.slug,
+      }
+
+    try {
+      const response = await fetch(`${MEMBER_API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to continue')
+      }
+
+      localStorage.setItem(MEMBER_TOKEN_KEY, data.token)
+      onAuthenticated()
+    } catch (submitError) {
+      console.error('Member auth error:', submitError)
+      const message = (submitError && submitError.message) ? submitError.message : 'Unable to continue'
+      if (message.toLowerCase().includes('failed to fetch')) {
+        setError('Unable to reach member server. Start backend API on port 3001, then try again.')
+      } else {
+        setError(message)
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="site-shell member-page">
+      <section className="panel member-auth-card">
+        <p className="eyebrow">Aura Tap Member Portal</p>
+        <h1>{mode === 'login' ? 'Member Login' : 'Create Member Account'}</h1>
+        <p>{mode === 'login' ? 'Sign in to edit your tap profile.' : 'Create an account to manage your tap page.'}</p>
+        {mode === 'register' && (
+          <p className="member-auth-helper">Choose a slug like jason-smith to create your public tap link.</p>
+        )}
+        <form className="member-auth-form" onSubmit={handleSubmit}>
+          <label htmlFor="member-email">Email</label>
+          <input id="member-email" name="email" type="email" value={form.email} onChange={updateField} required />
+
+          <label htmlFor="member-password">Password</label>
+          <input id="member-password" name="password" type="password" minLength="8" value={form.password} onChange={updateField} required />
+
+          {mode === 'register' && (
+            <>
+              <label htmlFor="member-displayName">Display Name</label>
+              <input id="member-displayName" name="displayName" value={form.displayName} onChange={updateField} required />
+
+              <label htmlFor="member-slug">Profile URL Slug</label>
+              <div className="member-slug-input-wrap">
+                <span className="member-slug-prefix">aurataps.net/</span>
+                <input
+                  id="member-slug"
+                  name="slug"
+                  className="member-slug-input"
+                  placeholder="your-name"
+                  value={form.slug}
+                  onChange={updateField}
+                  required
+                />
+              </div>
+              <p className="member-slug-preview">
+                Public link: aurataps.net/{form.slug || 'your-name'}
+              </p>
+            </>
+          )}
+
+          {error && <p className="login-error">{error}</p>}
+
+          <button type="submit" className="btn btn-primary member-btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
+          </button>
+        </form>
+
+        <button
+          type="button"
+          className="btn btn-secondary member-auth-switch"
+          onClick={() => {
+            setError('')
+            setMode((current) => (current === 'login' ? 'register' : 'login'))
+          }}
+        >
+          {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Login'}
+        </button>
+      </section>
+    </div>
+  )
+}
+
+function MemberDashboard({ onLogout }) {
+  const [profile, setProfile] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [status, setStatus] = useState('')
+  const avatarFileInputRef = useRef(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadProfile() {
+      try {
+        const response = await fetch(`${MEMBER_API_BASE}/api/member/profile`, {
+          headers: getMemberAuthHeaders(),
+        })
+
+        if (response.status === 401) {
+          onLogout()
+          return
+        }
+
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(data.error || 'Unable to load profile')
+        }
+
+        if (isMounted) {
+          setProfile({
+            ...data,
+            links: Array.isArray(data.links) ? data.links : [],
+          })
+        }
+      } catch (error) {
+        console.error('Failed to load member profile:', error)
+        if (isMounted) {
+          setStatus('Unable to load your profile right now.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadProfile()
+    return () => {
+      isMounted = false
+    }
+  }, [onLogout])
+
+  function updateProfileField(event) {
+    const { name, value } = event.target
+    setProfile((current) => ({ ...current, [name]: value }))
+  }
+
+  function handleAvatarFileChange(event) {
+    const file = event.target.files && event.target.files[0]
+    if (!file) {
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setStatus('Please choose an image file.')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setStatus('Please choose an image smaller than 2MB.')
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      if (!result) {
+        setStatus('Could not read the selected image.')
+        return
+      }
+
+      setProfile((current) => ({ ...current, avatarSrc: result }))
+      setStatus('Photo selected. Click Save Profile to publish it.')
+    }
+    reader.onerror = () => {
+      setStatus('Could not read the selected image.')
+    }
+
+    reader.readAsDataURL(file)
+    event.target.value = ''
+  }
+
+  function updateLink(index, field, value) {
+    setProfile((current) => ({
+      ...current,
+      links: current.links.map((link, i) => (i === index ? { ...link, [field]: value } : link)),
+    }))
+  }
+
+  function addLink() {
+    setProfile((current) => ({
+      ...current,
+      links: [...current.links, { label: '', href: '' }],
+    }))
+  }
+
+  function removeLink(index) {
+    setProfile((current) => ({
+      ...current,
+      links: current.links.filter((_, i) => i !== index),
+    }))
+  }
+
+  async function handleSave(event) {
+    event.preventDefault()
+    if (!profile) {
+      return
+    }
+
+    setStatus('')
+    setIsSaving(true)
+
+    try {
+      const response = await fetch(`${MEMBER_API_BASE}/api/member/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getMemberAuthHeaders(),
+        },
+        body: JSON.stringify({
+          displayName: profile.displayName,
+          headline: profile.headline,
+          subheadline: profile.subheadline,
+          avatarSrc: profile.avatarSrc,
+          links: profile.links,
+        }),
+      })
+
+      if (response.status === 401) {
+        onLogout()
+        return
+      }
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to save profile')
+      }
+
+      setProfile(data.profile)
+      setStatus('Saved successfully. Your card link is now updated.')
+    } catch (saveError) {
+      console.error('Failed to save profile:', saveError)
+      setStatus(saveError.message || 'Unable to save your profile')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading || !profile) {
+    return (
+      <div className="site-shell member-page">
+        <section className="panel member-auth-card">
+          <p>Loading member profile...</p>
+        </section>
+      </div>
+    )
+  }
+
+  const publicUrl = `${window.location.origin}/${profile.slug}`
+
+  return (
+    <div className="site-shell member-page">
+      <section className="panel member-dashboard-card">
+        <div className="member-dashboard-header">
+          <div>
+            <p className="eyebrow">Member Portal</p>
+            <h1>Edit Your Tap Page</h1>
+            <p>Public URL: <a href={publicUrl} target="_blank" rel="noreferrer">{publicUrl}</a></p>
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={onLogout}>Logout</button>
+        </div>
+
+        <form className="member-profile-form" onSubmit={handleSave}>
+          <label htmlFor="member-display">Display Name</label>
+          <input id="member-display" name="displayName" value={profile.displayName || ''} onChange={updateProfileField} required />
+
+          <label htmlFor="member-headline">Headline</label>
+          <input id="member-headline" name="headline" value={profile.headline || ''} onChange={updateProfileField} />
+
+          <label htmlFor="member-subheadline">Subheadline</label>
+          <input id="member-subheadline" name="subheadline" value={profile.subheadline || ''} onChange={updateProfileField} />
+
+          <label htmlFor="member-avatar">Avatar Image URL</label>
+          <div className="member-avatar-row">
+            <input id="member-avatar" name="avatarSrc" value={profile.avatarSrc || ''} onChange={updateProfileField} placeholder="/auralogo.png or https://..." />
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => avatarFileInputRef.current && avatarFileInputRef.current.click()}
+            >
+              Upload Photo
+            </button>
+            <input
+              ref={avatarFileInputRef}
+              type="file"
+              accept="image/*"
+              className="member-avatar-file-input"
+              onChange={handleAvatarFileChange}
+            />
+          </div>
+
+          <div className="member-links-editor">
+            <div className="member-links-head">
+              <h2>Profile Buttons</h2>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={addLink}>Add Link</button>
+            </div>
+            {profile.links.map((link, index) => (
+              <div className="member-link-row" key={`link-${index}`}>
+                <input
+                  value={link.label || ''}
+                  onChange={(event) => updateLink(index, 'label', event.target.value)}
+                  placeholder="Button label"
+                />
+                <input
+                  value={link.href || ''}
+                  onChange={(event) => updateLink(index, 'href', event.target.value)}
+                  placeholder="https://... or /contact"
+                />
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeLink(index)}>Remove</button>
+              </div>
+            ))}
+          </div>
+
+          {status && <p className="form-status">{status}</p>}
+
+          <button type="submit" className="btn btn-primary" disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Profile'}
+          </button>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+function MemberPortalPage() {
+  const [authState, setAuthState] = useState(() =>
+    localStorage.getItem(MEMBER_TOKEN_KEY) ? 'checking' : 'unauthenticated',
+  )
+
+  function handleAuthenticated() {
+    setAuthState('authenticated')
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(MEMBER_TOKEN_KEY)
+    setAuthState('unauthenticated')
+  }
+
+  useEffect(() => {
+    if (authState !== 'checking') {
+      return
+    }
+
+    let isMounted = true
+
+    async function verifySession() {
+      try {
+        const response = await fetch(`${MEMBER_API_BASE}/api/member/session`, {
+          headers: getMemberAuthHeaders(),
+        })
+
+        if (!isMounted) {
+          return
+        }
+
+        setAuthState(response.ok ? 'authenticated' : 'unauthenticated')
+        if (!response.ok) {
+          localStorage.removeItem(MEMBER_TOKEN_KEY)
+        }
+      } catch (error) {
+        console.error('Unable to verify member session:', error)
+        localStorage.removeItem(MEMBER_TOKEN_KEY)
+        if (isMounted) {
+          setAuthState('unauthenticated')
+        }
+      }
+    }
+
+    verifySession()
+    return () => {
+      isMounted = false
+    }
+  }, [authState])
+
+  if (authState === 'checking') {
+    return (
+      <div className="site-shell member-page">
+        <section className="panel member-auth-card">
+          <p>Checking member session...</p>
+        </section>
+      </div>
+    )
+  }
+
+  if (authState !== 'authenticated') {
+    return <MemberAuthPage onAuthenticated={handleAuthenticated} />
+  }
+
+  return <MemberDashboard onLogout={handleLogout} />
+}
+
 function App() {
+  const location = useLocation()
+  const normalizedPath = location.pathname.replace(/^\//, '').split('/')[0] || ''
+  const isProfileRoute = !RESERVED_PATHS.has(normalizedPath)
+
+  if (isProfileRoute) {
+    return (
+      <Routes>
+        <Route path="/:profileSlug" element={<AuraProfilePage />} />
+      </Routes>
+    )
+  }
+
   return (
     <div className="site-shell">
       <SiteHeader />
@@ -1986,7 +2756,9 @@ function App() {
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/warranty" element={<WarrantyPage />} />
+        <Route path="/member" element={<MemberPortalPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/:profileSlug" element={<AuraProfilePage />} />
       </Routes>
       <MobileStickyCta />
       <ChatWidget />

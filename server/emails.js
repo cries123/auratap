@@ -37,7 +37,7 @@ export async function sendNewMessageNotification(visitorName, visitorEmail, visi
   try {
     const adminBaseUrl = process.env.ADMIN_URL || process.env.FRONTEND_URL || 'http://localhost:5173'
     const normalizedAdminBaseUrl = adminBaseUrl.replace(/\/$/, '')
-    const adminLink = `${normalizedAdminBaseUrl}/#/admin?messageId=${messageId}`
+    const adminLink = `${normalizedAdminBaseUrl}/admin?messageId=${messageId}`
 
     const sent = await sendEmail({
       to: process.env.ADMIN_EMAIL || 'your_email@example.com',

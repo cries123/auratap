@@ -3,8 +3,26 @@ import express from 'express'
 import cors from 'cors'
 import crypto from 'crypto'
 import dotenv from 'dotenv'
-import { initializeDatabase, saveMessage, getUnreadMessages, getAllMessages, getMessageWithResponses, saveResponse, markMessageAsRead, deleteMessageThread } from './db.js'
-import { sendNewMessageNotification, sendAdminResponseEmail } from './emails.js'
+import fetch from 'node-fetch'
+import {
+  initializeDatabase,
+  saveMessage,
+  getUnreadMessages,
+  getAllMessages,
+  getMessageWithResponses,
+  saveResponse,
+  markMessageAsRead,
+  deleteMessageThread,
+  createMember,
+  findMemberByEmail,
+  findMemberBySlug,
+  getMemberProfileById,
+  getPublicProfileBySlug,
+  updateMemberProfile,
+  replaceMemberLinks,
+} from './db.js'
+import { sendNewMessageNotification } from './emails.js'
+import { sendTelegramMessage } from './telegram.js'
 
 dotenv.config()
 
@@ -18,6 +36,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 
   .filter(Boolean)
 
 const sessionTokens = new Map()
+const memberSessionTokens = new Map()
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 8
 
 function pruneExpiredSessions() {
@@ -25,6 +44,12 @@ function pruneExpiredSessions() {
   for (const [token, expiresAt] of sessionTokens.entries()) {
     if (expiresAt <= now) {
       sessionTokens.delete(token)
+    }
+  }
+
+  for (const [token, session] of memberSessionTokens.entries()) {
+    if (!session || session.expiresAt <= now) {
+      memberSessionTokens.delete(token)
     }
   }
 }
@@ -74,6 +99,38 @@ function authenticateAdmin(req, res, next) {
   return next()
 }
 
+function normalizeSlug(value = '') {
+  return String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString('hex')
+}
+
+function authenticateMember(req, res, next) {
+  const authHeader = req.headers.authorization || ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+
+  if (!token) {
+    return res.status(401).json({ error: 'Missing member token' })
+  }
+
+  pruneExpiredSessions()
+  const session = memberSessionTokens.get(token)
+  if (!session || session.expiresAt <= Date.now()) {
+    memberSessionTokens.delete(token)
+    return res.status(401).json({ error: 'Invalid or expired member token' })
+  }
+
+  req.memberId = session.memberId
+  return next()
+}
+
 // Middleware
 app.use(
   cors({
@@ -85,7 +142,7 @@ app.use(
 
       callback(new Error('Origin not allowed by CORS'))
     },
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 )
@@ -113,6 +170,12 @@ const contactFormLimiter = createRateLimiter({
   keyPrefix: 'contact-form',
 })
 
+const memberAuthLimiter = createRateLimiter({
+  windowMs: 1000 * 60 * 15,
+  max: 12,
+  keyPrefix: 'member-auth',
+})
+
 // ===== VISITOR ENDPOINTS =====
 
 // Save new chat message from visitor
@@ -126,8 +189,9 @@ app.post('/api/chat/message', chatMessageLimiter, async (req, res) => {
 
     const result = await saveMessage(visitorName, visitorEmail, visitorMessage)
 
-    // Send email notification to admin
-    await sendNewMessageNotification(visitorName, visitorEmail, visitorMessage, result.id)
+    // Send Telegram notification to you!
+    const telegramText = `<b>🚨 New Website Chat!</b>\n\n<b>From:</b> ${visitorName}\n<b>Message:</b> ${visitorMessage}\n\n<i>MessageID: ${result.id}</i>\n\n(Reply directly to this message to text them back on the website)`;
+    await sendTelegramMessage(telegramText);
 
     res.json({ success: true, messageId: result.id })
   } catch (error) {
@@ -170,6 +234,174 @@ app.post('/api/contact', contactFormLimiter, async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(500).json({ error: 'Failed to submit inquiry' })
+  }
+})
+
+app.post('/api/member/register', memberAuthLimiter, async (req, res) => {
+  try {
+    const { email, password, slug, displayName } = req.body
+
+    if (!email || !password || !slug || !displayName) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase()
+    const normalizedSlug = normalizeSlug(slug)
+    const trimmedName = String(displayName).trim()
+
+    if (!normalizedEmail.includes('@')) {
+      return res.status(400).json({ error: 'Please provide a valid email address' })
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' })
+    }
+
+    if (!normalizedSlug || normalizedSlug.length < 3) {
+      return res.status(400).json({ error: 'Slug must be at least 3 characters' })
+    }
+
+    const existingEmail = await findMemberByEmail(normalizedEmail)
+    if (existingEmail) {
+      return res.status(409).json({ error: 'An account with this email already exists' })
+    }
+
+    const existingSlug = await findMemberBySlug(normalizedSlug)
+    if (existingSlug) {
+      return res.status(409).json({ error: 'This slug is already taken' })
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex')
+    const passwordHash = hashPassword(password, salt)
+    const member = await createMember({
+      email: normalizedEmail,
+      passwordHash,
+      passwordSalt: salt,
+      slug: normalizedSlug,
+      displayName: trimmedName,
+    })
+
+    const token = crypto.randomBytes(32).toString('hex')
+    memberSessionTokens.set(token, {
+      memberId: member.id,
+      expiresAt: Date.now() + TOKEN_TTL_MS,
+    })
+
+    return res.json({ success: true, token, slug: normalizedSlug, expiresInSeconds: TOKEN_TTL_MS / 1000 })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ error: 'Failed to create member account' })
+  }
+})
+
+app.post('/api/member/login', memberAuthLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase()
+    const member = await findMemberByEmail(normalizedEmail)
+    if (!member) {
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    const candidateHash = hashPassword(password, member.passwordSalt)
+    if (candidateHash !== member.passwordHash) {
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    const token = crypto.randomBytes(32).toString('hex')
+    memberSessionTokens.set(token, {
+      memberId: member.id,
+      expiresAt: Date.now() + TOKEN_TTL_MS,
+    })
+
+    return res.json({ success: true, token, slug: member.slug, expiresInSeconds: TOKEN_TTL_MS / 1000 })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ error: 'Failed to log in' })
+  }
+})
+
+app.get('/api/member/session', authenticateMember, async (req, res) => {
+  try {
+    const profile = await getMemberProfileById(req.memberId)
+    if (!profile) {
+      return res.status(404).json({ error: 'Member not found' })
+    }
+
+    return res.json({ success: true, slug: profile.slug })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ error: 'Failed to verify member session' })
+  }
+})
+
+app.get('/api/member/profile', authenticateMember, async (req, res) => {
+  try {
+    const profile = await getMemberProfileById(req.memberId)
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' })
+    }
+
+    return res.json(profile)
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ error: 'Failed to fetch profile' })
+  }
+})
+
+app.put('/api/member/profile', authenticateMember, async (req, res) => {
+  try {
+    const { displayName, headline, subheadline, avatarSrc, links } = req.body
+
+    if (!displayName || !Array.isArray(links)) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    const cleanLinks = links
+      .map((link) => ({
+        label: String(link.label || '').trim(),
+        href: String(link.href || '').trim(),
+      }))
+      .filter((link) => link.label && link.href)
+      .slice(0, 8)
+
+    await updateMemberProfile(req.memberId, {
+      displayName: String(displayName).trim(),
+      headline: String(headline || '').trim(),
+      subheadline: String(subheadline || '').trim(),
+      avatarSrc: String(avatarSrc || '').trim() || '/auralogo.png',
+    })
+
+    await replaceMemberLinks(req.memberId, cleanLinks)
+
+    const updated = await getMemberProfileById(req.memberId)
+    return res.json({ success: true, profile: updated })
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ error: 'Failed to update profile' })
+  }
+})
+
+app.get('/api/public/profile/:slug', async (req, res) => {
+  try {
+    const slug = normalizeSlug(req.params.slug)
+    if (!slug) {
+      return res.status(404).json({ error: 'Profile not found' })
+    }
+
+    const profile = await getPublicProfileBySlug(slug)
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' })
+    }
+
+    return res.json(profile)
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ error: 'Failed to load public profile' })
   }
 })
 
@@ -256,9 +488,6 @@ app.post('/api/admin/response', authenticateAdmin, async (req, res) => {
     // Save response
     await saveResponse(messageId, adminResponse)
 
-    // Send email to visitor
-    await sendAdminResponseEmail(message.visitorEmail, message.visitorName, adminResponse)
-
     res.json({ success: true })
   } catch (error) {
     console.error(error)
@@ -304,3 +533,42 @@ app.listen(PORT, () => {
     console.log('WARNING: ADMIN_PASSWORD is not set. Admin login will be disabled.')
   }
 })
+
+// Start the Telegram Listener
+async function startTelegramPolling() {
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
+  if (!BOT_TOKEN) return
+  
+  let offset = 0
+  console.log('Started Telegram Listener...')
+
+  setInterval(async () => {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${offset}&timeout=10`)
+      const data = await res.json()
+      
+      if (data.ok && data.result.length > 0) {
+        for (const update of data.result) {
+          offset = update.update_id + 1
+          
+          if (update.message && update.message.reply_to_message) {
+            const adminReply = update.message.text
+            const originalText = update.message.reply_to_message.text
+            
+            // Extract the MessageID so we know which visitor to send it to
+            const match = originalText.match(/MessageID: (\d+)/)
+            if (match && match[1]) {
+              const messageId = parseInt(match[1])
+              await saveResponse(messageId, adminReply)
+              console.log(`Saved Telegram reply to Database for MessageID: ${messageId}`)
+              await sendTelegramMessage(`✅ Reply sent to visitor.`)
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore network timeouts
+    }
+  }, 3000)
+}
+startTelegramPolling()
