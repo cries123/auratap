@@ -70,7 +70,14 @@ export function ProfileCard({ profile, vcardHref, isPreview = false, headingLeve
 
   return (
     <section className={`profile-card${hasBanner ? ' has-banner' : ''}`} aria-label={`${name} contact page`}>
-      {!isPreview && profile.username && <ShareButton url={`${PUBLIC_SITE_URL}/${profile.username}`} title={name} />}
+      {profile.username &&
+        (isPreview ? (
+          <span className="profile-share" aria-hidden="true">
+            <ShareIcon />
+          </span>
+        ) : (
+          <ShareButton url={`${PUBLIC_SITE_URL}/${profile.username}`} title={name} />
+        ))}
 
       {hasBanner && <img src={profile.bannerUrl} alt="" className="profile-banner" style={rise()} />}
 

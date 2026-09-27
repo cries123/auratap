@@ -1186,7 +1186,7 @@
 
 .tap-demo {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: clamp(2rem, 5vw, 4rem);
 }
@@ -1207,22 +1207,153 @@
   padding-left: 1.2rem;
 }
 
-.tap-demo-photo-frame {
+.tap-demo-figure {
+  justify-self: center;
   margin: 0;
 }
 
-.tap-demo-photo {
-  display: block;
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-}
-
-.tap-demo-photo-frame figcaption {
-  margin-top: 0.75rem;
+.tap-demo-figure figcaption {
+  margin-top: 1rem;
   color: var(--muted);
   font-size: 0.85rem;
   text-align: center;
+}
+
+/* A phone showing the real tap page. The page is laid out at iPhone size (390 x 844) and scaled
+   down to fit the frame, so it matches the live page exactly. */
+.tap-mockup {
+  --mockup-screen-width: 290px;
+  --mockup-scale: 0.7436; /* 290 / 390 */
+  width: calc(var(--mockup-screen-width) + 24px);
+  padding: 12px;
+  border-radius: 54px;
+  background: linear-gradient(150deg, #3b3b40, #111113 42%, #28282c);
+  box-shadow:
+    0 0 0 1px #0b0b0c,
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 40px 70px -30px rgba(15, 23, 42, 0.55),
+    0 22px 30px -22px rgba(15, 23, 42, 0.35);
+}
+
+.tap-mockup-screen {
+  width: var(--mockup-screen-width);
+  height: calc(844px * var(--mockup-scale));
+  overflow: hidden;
+  border-radius: 42px;
+  background: #0a0a0b;
+}
+
+.tap-mockup-viewport {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  overflow: hidden;
+  transform: scale(var(--mockup-scale));
+  transform-origin: top left;
+}
+
+.tap-mockup-viewport .profile-page-shell {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  padding: 58px 22px 96px;
+}
+
+/* On a real phone the name uses its smallest size, so don't let the desktop window enlarge it. */
+.tap-mockup-viewport .profile-name {
+  font-size: 1.8rem;
+}
+
+/* The entrance animation waits until the phone scrolls into view. */
+.tap-mockup:not(.is-visible) .profile-card > * {
+  animation-play-state: paused;
+}
+
+.tap-mockup-status {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 54px;
+  padding: 2px 30px 0 46px;
+  color: #fff;
+}
+
+.tap-mockup-time {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tap-mockup-island {
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  width: 124px;
+  height: 36px;
+  border-radius: 999px;
+  background: #000;
+  transform: translateX(-50%);
+}
+
+.tap-mockup-indicators {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tap-mockup-urlbar {
+  position: absolute;
+  right: 18px;
+  bottom: 30px;
+  left: 18px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 50px;
+  border-radius: 999px;
+  background: rgba(40, 40, 44, 0.88);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.tap-mockup-urlbar svg {
+  opacity: 0.7;
+}
+
+.tap-mockup-home {
+  position: absolute;
+  bottom: 9px;
+  left: 50%;
+  z-index: 3;
+  width: 136px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  transform: translateX(-50%);
+}
+
+@media (max-width: 360px) {
+  .tap-mockup {
+    --mockup-screen-width: 250px;
+    --mockup-scale: 0.641; /* 250 / 390 */
+    padding: 10px;
+    border-radius: 46px;
+  }
+
+  .tap-mockup-screen {
+    border-radius: 36px;
+  }
 }
 
 /* Pricing page */

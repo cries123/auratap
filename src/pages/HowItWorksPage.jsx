@@ -1,6 +1,7 @@
 import { usePageMeta } from '../hooks/usePageMeta'
 import { HOW_IT_WORKS_STEPS } from '../data/content'
 import { SubpageHero } from '../components/SubpageHero'
+import { TapPageMockup } from '../components/TapPageMockup'
 
 export function HowItWorksPage() {
   usePageMeta(
@@ -45,12 +46,8 @@ export function HowItWorksPage() {
             <li>One clean page instead of five separate links</li>
           </ul>
         </div>
-        <figure className="tap-demo-photo-frame" aria-label="Aura Tap profile preview after card tap">
-          <img
-            src="/images/jay-profile-preview.webp"
-            alt="Aura card and phone profile preview after tapping"
-            className="tap-demo-photo"
-          />
+        <figure className="tap-demo-figure">
+          <TapPageMockup />
           <figcaption>An example Aura Tap profile page.</figcaption>
         </figure>
       </section>
