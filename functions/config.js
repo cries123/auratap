@@ -16,14 +16,14 @@ export const ALLOWED_ORIGINS = [
   ...(process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()),
 ].filter(Boolean)
 
-export const MEMBER_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30
 export const ADMIN_SESSION_TTL_MS = 1000 * 60 * 60 * 12
-export const PASSWORD_RESET_TTL_MS = 1000 * 60 * 60
+// How many tap links (current plus previous) one member can hold.
 export const MAX_SLUG_ALIASES = 5
 
-// Paths the website itself uses, plus names we never want a member to claim.
-// Keep in sync with RESERVED_PATHS in src/config.js.
+// Paths the website itself uses, plus names we never want a member to newly claim.
+// Handles members already own keep working. Keep in sync with RESERVED_PATHS in src/config.js.
 export const RESERVED_SLUGS = new Set([
+  'portal', 'platform', 'affiliate', 'faq', 'refund', 'refund-policy', 'privacy-policy',
   'admin', 'api', 'assets', 'images', 'member', 'members', 'login', 'logout', 'signup', 'register',
   'account', 'settings', 'reset-password', 'forgot-password', 'how-it-works', 'testimonials', 'reviews',
   'pricing', 'contact', 'privacy', 'terms', 'warranty', 'about', 'help', 'support', 'blog', 'shop',

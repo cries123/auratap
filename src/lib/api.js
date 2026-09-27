@@ -1,4 +1,5 @@
-import { MEMBER_API_BASE, MEMBER_TOKEN_KEY } from '../config'
+import { MEMBER_API_BASE } from '../config'
+import { getMemberAuth } from './firebase'
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -7,29 +8,17 @@ export class ApiError extends Error {
   }
 }
 
-export function getMemberToken() {
-  try {
-    return localStorage.getItem(MEMBER_TOKEN_KEY) || ''
-  } catch {
-    return ''
-  }
-}
-
-export function setMemberToken(token) {
-  try {
-    if (token) localStorage.setItem(MEMBER_TOKEN_KEY, token)
-    else localStorage.removeItem(MEMBER_TOKEN_KEY)
-  } catch {
-    // Private browsing can block storage; the member just stays logged in for this page view.
-  }
-}
-
-// Calls the member API and returns parsed JSON, or throws an ApiError with a message
-// that is safe to show to customers.
+// Calls the member API and returns parsed JSON, or throws an ApiError with a message that is
+// safe to show to customers. `auth` sends the signed-in member's Firebase ID token.
 export async function memberApi(path, { method = 'GET', body, auth = false } = {}) {
   const headers = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  if (auth) headers.Authorization = `Bearer ${getMemberToken()}`
+  if (auth) {
+    const { auth: firebaseAuth } = await getMemberAuth()
+    const token = await firebaseAuth.currentUser?.getIdToken()
+    if (!token) throw new ApiError('Please log in again.', 401)
+    headers.Authorization = `Bearer ${token}`
+  }
 
   let response
   try {

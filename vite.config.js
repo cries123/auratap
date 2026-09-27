@@ -24,6 +24,11 @@ export default defineConfig(({ command, mode }) => {
           changeOrigin: true,
           rewrite: (path) => `/${emulatorProject}/us-central1/apiV2${path}`,
         },
+        // Firebase web config for the member portal (the dev build signs in against the Auth emulator).
+        '/__/firebase': {
+          target: 'https://auratap-ee8a0.web.app',
+          changeOrigin: true,
+        },
       },
     },
   }

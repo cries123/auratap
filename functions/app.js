@@ -1,33 +1,27 @@
 import express from 'express'
 import cors from 'cors'
-import crypto from 'node:crypto'
 import {
   ADMIN_PASSWORD,
   ADMIN_SESSION_TTL_MS,
   ALLOWED_ORIGINS,
   FRONTEND_URL,
-  MEMBER_SESSION_TTL_MS,
-  PASSWORD_RESET_TTL_MS,
   TELEGRAM_WEBHOOK_SECRET,
 } from './config.js'
 import {
   LIMITS,
   ValidationError,
   cleanAvatar,
+  cleanBanner,
   cleanLinks,
-  cleanPhone,
+  cleanTags,
   cleanText,
-  hashPassword,
-  normalizeEmail,
-  normalizeSlug,
+  handleForLookup,
   safeEqual,
   validateEmail,
-  validatePassword,
-  validateSlug,
-  verifyPassword,
+  validateNewUsername,
 } from './validation.js'
 import * as store from './store.js'
-import { sendAdminResponseEmail, sendNewMessageNotification, sendPasswordResetEmail } from './emails.js'
+import { sendAdminResponseEmail, sendNewMessageNotification } from './emails.js'
 import { newChatAlert, parseAdminReply, sendTelegramMessage } from './telegram.js'
 import { buildVCard } from './vcard.js'
 
@@ -46,8 +40,8 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 )
-// Profile photos are resized in the browser to ~400px, well under this limit.
-app.use(express.json({ limit: '400kb' }))
+// Profile photos and banners are resized in the browser, well under this limit.
+app.use(express.json({ limit: '1mb' }))
 
 const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
@@ -55,8 +49,8 @@ const HOUR = 60 * MINUTE
 // The visitor's address, used only for best-effort per-visitor rate limits.
 // Requests to aurataps.net pass through Netlify and then Firebase Hosting, so the connecting
 // address is a proxy; Netlify's client header or the first X-Forwarded-For entry (req.ip,
-// since trust proxy is on) is the visitor. Callers can forge these headers, which is why
-// logins and password resets are also limited per email address.
+// since trust proxy is on) is the visitor. Callers can forge these headers; member sign-in
+// and password resets are protected by Firebase Authentication itself.
 function clientIp(req) {
   return String(req.headers['x-nf-client-connection-ip'] || req.ip || 'unknown').split(',')[0].trim()
 }
@@ -80,15 +74,23 @@ function rateLimit(name, { max, windowMs }, keyFor = clientIp) {
   })
 }
 
+// Members sign in with Firebase Authentication in the browser and send their ID token.
 const requireMember = route(async (req, res, next) => {
   const token = bearerToken(req)
-  const session = await store.getSession(token, 'member')
-  if (!session) {
+  let decoded = null
+  if (token) {
+    try {
+      decoded = await store.auth.verifyIdToken(token)
+    } catch {
+      decoded = null
+    }
+  }
+  if (!decoded) {
     res.status(401).json({ error: 'Your session has expired. Please log in again.' })
     return
   }
-  req.memberId = session.memberId
-  req.sessionToken = token
+  req.uid = decoded.uid
+  req.email = decoded.email || ''
   next()
 })
 
@@ -150,70 +152,38 @@ app.post(
   }),
 )
 
-// ─── Member accounts ───
+// ─── Member profiles (accounts are Firebase Authentication users) ───
 
-app.post(
-  '/api/member/register',
-  // High enough for a whole team to sign up from one office network.
-  rateLimit('register', { max: 30, windowMs: HOUR }),
-  route(async (req, res) => {
-    const email = validateEmail(req.body.email)
-    const password = validatePassword(req.body.password)
-    const displayName = cleanText(req.body.displayName, LIMITS.displayName, 'Name', { required: true })
-    const slug = validateSlug(req.body.slug)
-
-    const passwordSalt = crypto.randomBytes(16).toString('hex')
-    const passwordHash = await hashPassword(password, passwordSalt)
-    const member = await store.createMember({ email, passwordHash, passwordSalt, slug, displayName })
-    const token = await store.createSession({ type: 'member', memberId: member.id, ttlMs: MEMBER_SESSION_TTL_MS })
-    res.json({ success: true, token, slug })
-  }),
-)
-
-// A throwaway hash so a login for an unknown email takes as long as a real one.
-const DUMMY_SALT = crypto.randomBytes(16).toString('hex')
-const DUMMY_HASH = crypto.scryptSync('not-a-real-password', DUMMY_SALT, 64).toString('hex')
-
-app.post(
-  '/api/member/login',
-  rateLimit('login-ip', { max: 30, windowMs: 15 * MINUTE }),
-  rateLimit('login-email', { max: 10, windowMs: 15 * MINUTE }, (req) => normalizeEmail(req.body.email)),
-  route(async (req, res) => {
-    const email = normalizeEmail(req.body.email)
-    const password = String(req.body.password || '')
-    const member = email ? await store.findMemberByEmail(email) : null
-    const valid = await verifyPassword(password, member?.passwordSalt || DUMMY_SALT, member?.passwordHash || DUMMY_HASH)
-
-    if (!member || !valid) {
-      res.status(401).json({ error: 'Incorrect email or password.' })
-      return
-    }
-
-    await store.clearRateLimit(`login-email:${email}`)
-    const token = await store.createSession({ type: 'member', memberId: member.id, ttlMs: MEMBER_SESSION_TTL_MS })
-    res.json({ success: true, token, slug: member.slug })
-  }),
-)
-
-app.post(
-  '/api/member/logout',
-  requireMember,
-  route(async (req, res) => {
-    await store.deleteSession(req.sessionToken)
-    res.json({ success: true })
-  }),
-)
-
+// Checked before a new account is created, so sign-up can't leave someone without a link.
 app.get(
-  '/api/member/session',
-  requireMember,
+  '/api/public/username/:handle',
+  rateLimit('username-check', { max: 120, windowMs: 10 * MINUTE }),
   route(async (req, res) => {
-    const profile = await store.getMemberProfile(req.memberId)
-    if (!profile) {
-      res.status(401).json({ error: 'Account not found' })
+    let handle
+    try {
+      handle = validateNewUsername(req.params.handle)
+    } catch (error) {
+      res.json({ available: false, reason: error.message })
       return
     }
-    res.json({ success: true, slug: profile.slug })
+    const available = await store.isUsernameAvailable(handle)
+    res.json({ available, reason: available ? '' : 'That link is already taken. Please choose another.' })
+  }),
+)
+
+// Called right after a new Firebase account is created: names the profile and claims its link.
+app.post(
+  '/api/member/setup',
+  requireMember,
+  // High enough for a whole team to sign up from one office network.
+  rateLimit('setup', { max: 30, windowMs: HOUR }),
+  route(async (req, res) => {
+    const displayName = cleanText(req.body.displayName, LIMITS.displayName, 'Name', { required: true })
+    const username = validateNewUsername(req.body.username)
+    await store.ensureUserDoc(req.uid, req.email)
+    await store.claimUsername(req.uid, username)
+    const profile = await store.updateUserProfile(req.uid, { displayName })
+    res.json({ success: true, profile })
   }),
 )
 
@@ -221,108 +191,76 @@ app.get(
   '/api/member/profile',
   requireMember,
   route(async (req, res) => {
-    const profile = await store.getMemberProfile(req.memberId)
-    if (!profile) {
-      res.status(404).json({ error: 'Profile not found' })
-      return
-    }
-    res.json(profile)
+    res.json(await store.ensureUserDoc(req.uid, req.email))
   }),
 )
 
+// Profiles created in the original Aura app were never validated, so a value the member didn't
+// change is saved exactly as stored; only new or edited values are checked.
+const sameValue = (a, b) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '')
+const keepOrClean = (incoming, stored, clean) => (sameValue(incoming, stored) ? stored : clean(incoming))
+
+// Updates only the fields the portal edits; role, email, affiliate data, and anything else
+// on the member's document are left untouched.
 app.put(
   '/api/member/profile',
   requireMember,
   route(async (req, res) => {
     const body = req.body || {}
-    const profile = await store.updateMemberProfile(req.memberId, {
-      displayName: cleanText(body.displayName, LIMITS.displayName, 'Name', { required: true }),
-      headline: cleanText(body.headline, LIMITS.headline, 'Headline'),
-      subheadline: cleanText(body.subheadline, LIMITS.subheadline, 'Short bio'),
-      company: cleanText(body.company, LIMITS.company, 'Company'),
-      jobTitle: cleanText(body.jobTitle, LIMITS.jobTitle, 'Job title'),
-      phone: cleanPhone(body.phone),
-      contactEmail: validateEmail(body.contactEmail, { optional: true, field: 'contact email' }),
-      avatarSrc: cleanAvatar(body.avatarSrc),
-      links: cleanLinks(body.links || []),
+    const current = await store.ensureUserDoc(req.uid, req.email)
+    const profile = await store.updateUserProfile(req.uid, {
+      displayName: keepOrClean(body.displayName, current.displayName, (v) => cleanText(v, LIMITS.displayName, 'Name', { required: true })),
+      jobTitle: keepOrClean(body.jobTitle, current.jobTitle, (v) => cleanText(v, LIMITS.jobTitle, 'Job title')),
+      location: keepOrClean(body.location, current.location, (v) => cleanText(v, LIMITS.location, 'Location')),
+      bio: keepOrClean(body.bio, current.bio, (v) => cleanText(v, LIMITS.bio, 'Bio', { multiline: true })),
+      tags: keepOrClean(body.tags, current.tags, cleanTags),
+      avatarUrl: keepOrClean(body.avatarUrl, current.avatarUrl, cleanAvatar),
+      bannerUrl: keepOrClean(body.bannerUrl, current.bannerUrl, cleanBanner),
+      links: cleanLinks(body.links || [], current.links),
     })
     res.json({ success: true, profile })
   }),
 )
 
 app.put(
-  '/api/member/slug',
+  '/api/member/username',
   requireMember,
-  rateLimit('slug-change', { max: 10, windowMs: HOUR }, (req) => req.memberId),
+  rateLimit('username-change', { max: 10, windowMs: HOUR }, (req) => req.uid),
   route(async (req, res) => {
-    const profile = await store.changeMemberSlug(req.memberId, validateSlug(req.body.slug))
+    await store.ensureUserDoc(req.uid, req.email)
+    const profile = await store.claimUsername(req.uid, validateNewUsername(req.body.username))
     res.json({ success: true, profile })
-  }),
-)
-
-// Always answers the same way so the form can't be used to find out who has an account.
-app.post(
-  '/api/member/password-reset/request',
-  rateLimit('reset-ip', { max: 10, windowMs: HOUR }),
-  rateLimit('reset-email', { max: 3, windowMs: HOUR }, (req) => normalizeEmail(req.body.email)),
-  route(async (req, res) => {
-    const email = normalizeEmail(req.body.email)
-    const member = email ? await store.findMemberByEmail(email) : null
-    if (member) {
-      const token = await store.createPasswordReset(member.id, PASSWORD_RESET_TTL_MS)
-      const sent = await sendPasswordResetEmail(member.email, member.displayName, token)
-      if (!sent) {
-        console.warn(`Password reset requested for ${member.email}, but no email was sent (check RESEND_API_KEY).`)
-      }
-    }
-    res.json({ success: true })
-  }),
-)
-
-app.post(
-  '/api/member/password-reset/confirm',
-  rateLimit('reset-confirm', { max: 20, windowMs: HOUR }),
-  route(async (req, res) => {
-    const password = validatePassword(req.body.password)
-    const memberId = await store.consumePasswordReset(String(req.body.token || ''))
-    if (!memberId) {
-      throw new ValidationError('This reset link is invalid or has expired. Please request a new one.')
-    }
-
-    const passwordSalt = crypto.randomBytes(16).toString('hex')
-    await store.updateMemberPassword(memberId, { passwordSalt, passwordHash: await hashPassword(password, passwordSalt) })
-    // Sign out every device that was logged in with the old password.
-    await store.deleteMemberSessions(memberId)
-    const token = await store.createSession({ type: 'member', memberId, ttlMs: MEMBER_SESSION_TTL_MS })
-    res.json({ success: true, token })
   }),
 )
 
 // ─── Public tap profiles ───
 
+async function publicProfileFor(req, res) {
+  const handle = handleForLookup(req.params.handle)
+  const profile = handle ? await store.getPublicProfileByHandle(handle) : null
+  if (!profile) {
+    res.status(404).json({ error: 'Profile not found' })
+    return null
+  }
+  return profile
+}
+
 app.get(
-  '/api/public/profile/:slug',
+  '/api/public/profile/:handle',
   route(async (req, res) => {
-    const profile = await store.getPublicProfileBySlug(normalizeSlug(req.params.slug))
-    if (!profile) {
-      res.status(404).json({ error: 'Profile not found' })
-      return
-    }
-    res.json(profile)
+    const profile = await publicProfileFor(req, res)
+    if (profile) res.json(profile)
   }),
 )
 
 app.get(
-  '/api/public/profile/:slug/vcard',
+  '/api/public/profile/:handle/vcard',
   route(async (req, res) => {
-    const profile = await store.getPublicProfileBySlug(normalizeSlug(req.params.slug))
-    if (!profile) {
-      res.status(404).json({ error: 'Profile not found' })
-      return
-    }
+    const profile = await publicProfileFor(req, res)
+    if (!profile) return
     res.set('Content-Type', 'text/vcard; charset=utf-8')
-    res.set('Content-Disposition', `attachment; filename="${profile.slug}.vcf"`)
-    res.send(buildVCard(profile, `${FRONTEND_URL}/${profile.slug}`))
+    res.set('Content-Disposition', `attachment; filename="${profile.username}.vcf"`)
+    res.send(buildVCard(profile, `${FRONTEND_URL}/${profile.username}`))
   }),
 )
 

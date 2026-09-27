@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { linkHref, linkTypeInfo } from '../lib/links'
 
 function initialsFor(name) {
   return String(name || '?')
@@ -14,13 +15,6 @@ function ProfileButton({ href, className, children, isPreview }) {
   if (isPreview) {
     return <span className={className}>{children}</span>
   }
-  if (href.startsWith('/')) {
-    return (
-      <Link className={className} to={href}>
-        {children}
-      </Link>
-    )
-  }
   const opensNewTab = /^https?:/i.test(href)
   return (
     <a className={className} href={href} {...(opensNewTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
@@ -29,58 +23,49 @@ function ProfileButton({ href, className, children, isPreview }) {
   )
 }
 
+// Renders a member profile in the Aura platform's format (users/{uid}).
 export function ProfileCard({ profile, vcardHref, isPreview = false, headingLevel = 1 }) {
   const Heading = `h${headingLevel}`
-  const role = [profile.jobTitle, profile.company].filter(Boolean).join(' · ')
-  const links = (profile.links || []).filter((link) => link.label && link.href)
+  const role = [profile.jobTitle, profile.location].filter(Boolean).join(' · ')
+  const links = (profile.links || []).filter((link) => link?.value)
+  const tags = (profile.tags || []).filter(Boolean)
 
   return (
     <section className="profile-card" aria-label={`${profile.displayName || 'Profile'} contact page`}>
-      {profile.avatarSrc ? (
-        <img src={profile.avatarSrc} alt="" className="profile-avatar" />
+      {profile.bannerUrl && <img src={profile.bannerUrl} alt="" className="profile-banner" />}
+
+      {profile.avatarUrl ? (
+        <img src={profile.avatarUrl} alt="" className={`profile-avatar${profile.bannerUrl ? ' has-banner' : ''}`} />
       ) : (
-        <span className="profile-avatar profile-avatar-initials" aria-hidden="true">
-          {initialsFor(profile.displayName)}
+        <span className={`profile-avatar profile-avatar-initials${profile.bannerUrl ? ' has-banner' : ''}`} aria-hidden="true">
+          {initialsFor(profile.displayName || profile.username)}
         </span>
       )}
 
-      <Heading className="profile-name">{profile.displayName || 'Your name'}</Heading>
+      <Heading className="profile-name">{profile.displayName || profile.username || 'Your name'}</Heading>
       {role && <p className="profile-role">{role}</p>}
-      {profile.headline && <p className="profile-headline">{profile.headline}</p>}
-      {profile.subheadline && <p className="profile-subheadline">{profile.subheadline}</p>}
+      {profile.bio && <p className="profile-bio">{profile.bio}</p>}
+      {tags.length > 0 && (
+        <ul className="profile-tags" aria-label="Tags">
+          {tags.map((tag) => (
+            <li key={tag}>{tag}</li>
+          ))}
+        </ul>
+      )}
 
-      <div className="profile-actions">
-        {vcardHref && (
+      {vcardHref && (
+        <div className="profile-actions">
           <ProfileButton href={vcardHref} className="profile-save-contact" isPreview={isPreview}>
             Save Contact
           </ProfileButton>
-        )}
-        {(profile.phone || profile.contactEmail) && (
-          <div className="profile-quick-actions">
-            {profile.phone && (
-              <ProfileButton href={`tel:${profile.phone.replace(/[^\d+]/g, '')}`} className="profile-quick-action" isPreview={isPreview}>
-                Call
-              </ProfileButton>
-            )}
-            {profile.phone && (
-              <ProfileButton href={`sms:${profile.phone.replace(/[^\d+]/g, '')}`} className="profile-quick-action" isPreview={isPreview}>
-                Text
-              </ProfileButton>
-            )}
-            {profile.contactEmail && (
-              <ProfileButton href={`mailto:${profile.contactEmail}`} className="profile-quick-action" isPreview={isPreview}>
-                Email
-              </ProfileButton>
-            )}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {links.length > 0 && (
         <div className="profile-link-list">
           {links.map((link, index) => (
-            <ProfileButton key={`${link.label}-${index}`} href={link.href} className="profile-link-button" isPreview={isPreview}>
-              {link.label}
+            <ProfileButton key={`${link.type}-${index}`} href={linkHref(link)} className="profile-link-button" isPreview={isPreview}>
+              {link.label || linkTypeInfo(link.type).label}
             </ProfileButton>
           ))}
         </div>

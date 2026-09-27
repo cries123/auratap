@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { MEMBER_API_BASE, RESERVED_PATHS } from '../config'
 import { usePageMeta } from '../hooks/usePageMeta'
-import { AURA_PROFILE_PAGES } from '../data/content'
 import { ProfileCard } from '../components/ProfileCard'
 
 export function AuraProfilePage() {
@@ -15,8 +14,8 @@ export function AuraProfilePage() {
   const [attempt, setAttempt] = useState(0)
 
   usePageMeta(
-    profile ? profile.displayName : 'Profile',
-    profile ? [profile.displayName, profile.headline].filter(Boolean).join(': ') : undefined,
+    profile ? profile.displayName || profile.username : 'Profile',
+    profile ? [profile.displayName, profile.jobTitle].filter(Boolean).join(': ') || undefined : undefined,
   )
 
   useEffect(() => {
@@ -40,21 +39,15 @@ export function AuraProfilePage() {
       if (response?.ok) {
         const data = await response.json()
         // Old links keep working; show the member's current link in the address bar.
-        if (data.slug && data.slug !== key) {
-          navigate(`/${data.slug}`, { replace: true })
+        if (data.username && data.username.toLowerCase() !== key) {
+          navigate(`/${data.username}`, { replace: true })
         }
-        setProfile({ ...data, links: Array.isArray(data.links) ? data.links : [] })
+        setProfile(data)
         setStatus('ready')
         return
       }
 
-      const fallback = AURA_PROFILE_PAGES[key]
-      if (fallback) {
-        setProfile(fallback)
-        setStatus('ready')
-      } else {
-        setStatus(response?.status === 404 ? 'not-found' : 'error')
-      }
+      setStatus(response?.status === 404 ? 'not-found' : 'error')
     }
 
     loadProfile()
@@ -107,14 +100,12 @@ export function AuraProfilePage() {
     )
   }
 
-  // Built-in fallback pages have no server record, so they can't offer a contact card download.
-  const vcardHref = profile.slug
-    ? `${MEMBER_API_BASE}/api/public/profile/${encodeURIComponent(profile.slug)}/vcard`
-    : undefined
-
   return (
     <main className="profile-page-shell">
-      <ProfileCard profile={profile} vcardHref={vcardHref} />
+      <ProfileCard
+        profile={profile}
+        vcardHref={`${MEMBER_API_BASE}/api/public/profile/${encodeURIComponent(profile.username)}/vcard`}
+      />
     </main>
   )
 }

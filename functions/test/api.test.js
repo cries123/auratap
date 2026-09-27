@@ -1,5 +1,5 @@
-// End-to-end API tests. Run with `npm test` in functions/ (starts the Functions + Firestore emulators
-// for the offline "demo-auratap" project, whose test settings live in functions/.env.demo-auratap).
+// End-to-end API tests. Run with `npm test` in functions/ (starts the Auth, Functions, and Firestore
+// emulators for the offline "demo-auratap" project, whose test settings live in functions/.env.demo-auratap).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -7,6 +7,7 @@ import crypto from 'node:crypto'
 const PROJECT = 'demo-auratap'
 const API = `http://127.0.0.1:5001/${PROJECT}/us-central1/apiV2`
 const FIRESTORE = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`
+const AUTH = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1'
 const run = crypto.randomBytes(4).toString('hex')
 
 async function call(method, path, { body, token, headers = {} } = {}) {
@@ -17,7 +18,7 @@ async function call(method, path, { body, token, headers = {} } = {}) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
-    body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
   const text = await response.text()
   let json = null
@@ -29,204 +30,206 @@ async function call(method, path, { body, token, headers = {} } = {}) {
   return { status: response.status, json, text, headers: response.headers }
 }
 
-// Sign-ups are limited per visitor IP, so each test sign-up presents its own address.
-let fakeIp = 0
-async function register(name, overrides = {}) {
-  fakeIp += 1
-  return call('POST', '/api/member/register', {
-    body: { email: `${name}-${run}@test.dev`, password: 'correct horse battery', displayName: 'Test Person', slug: `${name}-${run}`, ...overrides },
-    headers: { 'X-Forwarded-For': `198.51.100.${fakeIp}` },
+// Creates a Firebase Auth user in the emulator and returns { uid, token }.
+async function firebaseUser(name) {
+  const response = await fetch(`${AUTH}/accounts:signUp?key=fake-api-key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: `${name}-${run}@test.dev`, password: 'correct horse battery', returnSecureToken: true }),
   })
+  const data = await response.json()
+  assert.ok(data.idToken, JSON.stringify(data))
+  return { uid: data.localId, token: data.idToken, email: `${name}-${run}@test.dev` }
 }
 
-const baseProfile = { displayName: 'Jordan Rivera', links: [] }
+// Writes a document straight into the Firestore emulator (bypassing rules), like data the
+// original Aura app already stored.
+function toFirestoreValue(value) {
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(toFirestoreValue) } }
+  if (value && typeof value === 'object') {
+    return { mapValue: { fields: Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toFirestoreValue(v)])) } }
+  }
+  if (typeof value === 'number') return { integerValue: String(value) }
+  return { stringValue: String(value) }
+}
+async function seed(path, data) {
+  const response = await fetch(`${FIRESTORE}/${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+    body: JSON.stringify({ fields: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, toFirestoreValue(v)])) }),
+  })
+  assert.equal(response.status, 200, await response.text())
+}
+async function readDoc(path) {
+  const response = await fetch(`${FIRESTORE}/${path}`, { headers: { Authorization: 'Bearer owner' } })
+  return response.status === 200 ? (await response.json()).fields : null
+}
 
-test('registration validates input and reserves site paths', async () => {
-  const ok = await register('reg')
-  assert.equal(ok.status, 200)
-  assert.ok(ok.json.token)
-  assert.equal(ok.json.slug, `reg-${run}`)
+// Each setup call presents its own visitor address so the per-address limit doesn't interfere.
+let fakeIp = 0
+const setup = (user, body) => {
+  fakeIp += 1
+  return call('POST', '/api/member/setup', { token: user.token, body, headers: { 'X-Forwarded-For': `198.51.100.${fakeIp}` } })
+}
 
-  assert.equal((await register('dupe-email', { email: `reg-${run}@test.dev` })).status, 409)
-  assert.equal((await register('dupe-slug', { slug: `reg-${run}` })).status, 409)
-
-  const reserved = await register('reserved', { slug: 'pricing' })
-  assert.equal(reserved.status, 400)
-  assert.match(reserved.json.error, /reserved/)
-
-  assert.equal((await register('short-pass', { password: 'short' })).status, 400)
-  assert.equal((await register('bad-email', { email: 'not-an-email' })).status, 400)
+test('username availability checks format, reserved names, and taken links', async () => {
+  const reserved = await call('GET', '/api/public/username/pricing')
+  assert.equal(reserved.json.available, false)
+  assert.match(reserved.json.reason, /reserved/)
+  assert.equal((await call('GET', '/api/public/username/has%20space')).json.available, false)
+  assert.equal((await call('GET', `/api/public/username/free-${run}`)).json.available, true)
 })
 
-test('login, session, and logout', async () => {
-  await register('login')
-  const email = `login-${run}@test.dev`
+test('new members sign up with Firebase, then claim a link', async () => {
+  const user = await firebaseUser('newbie')
+  const done = await setup(user, { displayName: 'New Member', username: `newbie-${run}` })
+  assert.equal(done.status, 200, done.text)
+  assert.equal(done.json.profile.username, `newbie-${run}`)
+  assert.equal(done.json.profile.displayName, 'New Member')
 
-  const wrong = await call('POST', '/api/member/login', { body: { email, password: 'wrong password' } })
-  assert.equal(wrong.status, 401)
-  assert.equal(wrong.json.error, 'Incorrect email or password.')
+  const stored = await readDoc(`users/${user.uid}`)
+  assert.equal(stored.role.stringValue, 'user')
+  assert.equal(stored.email.stringValue, user.email)
 
-  const unknown = await call('POST', '/api/member/login', { body: { email: `nobody-${run}@test.dev`, password: 'whatever123' } })
-  assert.equal(unknown.status, 401)
+  const other = await firebaseUser('copycat')
+  assert.equal((await setup(other, { displayName: 'Copy Cat', username: `newbie-${run}` })).status, 409)
+  assert.equal((await call('GET', `/api/public/username/newbie-${run}`)).json.available, false)
 
-  const login = await call('POST', '/api/member/login', { body: { email: email.toUpperCase(), password: 'correct horse battery' } })
-  assert.equal(login.status, 200)
-  const { token } = login.json
-
-  assert.equal((await call('GET', '/api/member/session', { token })).status, 200)
-  assert.equal((await call('POST', '/api/member/logout', { token })).status, 200)
-  assert.equal((await call('GET', '/api/member/session', { token })).status, 401)
+  assert.equal((await call('GET', '/api/member/profile', { token: 'not-a-real-token' })).status, 401)
+  assert.equal((await call('GET', '/api/member/profile')).status, 401)
 })
 
-test('profile saves realistic photos and validates fields and links', async () => {
-  const { token } = (await register('profile')).json
+test("existing Aura members' tap pages, contact cards, and data keep working", async () => {
+  const user = await firebaseUser('legacy')
+  const handle = `legacy_${run}`
+  await seed(`users/${user.uid}`, {
+    uid: user.uid,
+    email: user.email,
+    role: 'affiliate',
+    createdAt: '2026-05-22T22:30:03.243Z',
+    username: handle,
+    displayName: 'Legacy Member',
+    jobTitle: 'Broker',
+    location: 'San Luis Obispo',
+    bio: 'Old bio',
+    tags: ['realtor', 'slo'],
+    // Values the original app allowed but the new portal wouldn't accept as new input.
+    avatarUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+    bannerUrl: 'data:image/jpeg;base64,/9j/BBBB',
+    discountCode: 'WX7A9VC',
+    links: [
+      { type: 'phone', label: 'Call', value: '805-555-0101' },
+      { type: 'email', label: 'Email', value: 'legacy@example.com' },
+      { type: 'instagram', label: 'Instagram', value: 'instagram.com/legacy' },
+      { type: 'phone', label: 'Office', value: 'ext 2 at front desk' },
+    ],
+  })
+  await seed(`usernames/${handle}`, { uid: user.uid, claimedAt: '2026-05-22T18:54:06.960Z' })
 
-  const photo = 'data:image/jpeg;base64,' + crypto.randomBytes(150 * 1024).toString('base64')
+  const profile = await call('GET', `/api/public/profile/${handle.toUpperCase()}`)
+  assert.equal(profile.status, 200, profile.text)
+  assert.equal(profile.json.displayName, 'Legacy Member')
+  assert.deepEqual(profile.json.tags, ['realtor', 'slo'])
+  assert.equal(profile.json.links.length, 4)
+  for (const hidden of ['email', 'role', 'uid', 'discountCode']) assert.equal(profile.json[hidden], undefined)
+
+  const vcard = await call('GET', `/api/public/profile/${handle}/vcard`)
+  assert.match(vcard.headers.get('content-type'), /text\/vcard/)
+  assert.match(vcard.text, /FN:Legacy Member/)
+  assert.match(vcard.text, /TEL;TYPE=CELL:805-555-0101/)
+  assert.match(vcard.text, /EMAIL;TYPE=INTERNET:legacy@example.com/)
+  assert.match(vcard.text, /URL:https:\/\/instagram.com\/legacy/)
+
+  // The member logs in to the new portal with their existing Firebase account and saves.
+  const mine = await call('GET', '/api/member/profile', { token: user.token })
+  assert.equal(mine.json.username, handle)
   const saved = await call('PUT', '/api/member/profile', {
-    token,
-    body: {
-      ...baseProfile,
-      headline: 'Realtor',
-      phone: '(805) 555-1234',
-      contactEmail: 'jordan@example.com',
-      company: 'Coastal Homes',
-      jobTitle: 'Agent',
-      avatarSrc: photo,
-      links: [
-        { label: 'Instagram', href: 'instagram.com/jordan' },
-        { label: 'Call', href: 'tel:8055551234' },
-        { label: 'Listings', href: '/pricing' },
-      ],
-    },
+    token: user.token,
+    body: { ...mine.json, bio: 'New bio', links: [...mine.json.links, { type: 'website', label: 'Site', value: 'example.com' }] },
   })
   assert.equal(saved.status, 200, saved.text)
-  assert.equal(saved.json.profile.avatarSrc.length, photo.length)
-  assert.deepEqual(saved.json.profile.links.map((l) => l.href), ['https://instagram.com/jordan', 'tel:8055551234', '/pricing'])
+  const stored = await readDoc(`users/${user.uid}`)
+  assert.equal(stored.bio.stringValue, 'New bio')
+  assert.equal(stored.role.stringValue, 'affiliate')
+  assert.equal(stored.discountCode.stringValue, 'WX7A9VC')
+  assert.equal(stored.createdAt.stringValue, '2026-05-22T22:30:03.243Z')
+  // Unchanged legacy values were kept as-is; the new button was added.
+  assert.equal(stored.avatarUrl.stringValue, 'data:image/svg+xml;base64,PHN2Zy8+')
+  assert.equal(stored.links.arrayValue.values.length, 5)
 
-  for (const href of ['javascript:alert(1)', 'data:text/html,<b>x</b>', '//evil.example']) {
-    const bad = await call('PUT', '/api/member/profile', { token, body: { ...baseProfile, links: [{ label: 'Bad', href }] } })
-    assert.equal(bad.status, 400, `${href} should be rejected`)
+  // New input still gets validated.
+  const newSvg = await call('PUT', '/api/member/profile', { token: user.token, body: { ...saved.json.profile, avatarUrl: 'data:image/svg+xml;base64,PHN2ZyAvPg==' } })
+  assert.equal(newSvg.status, 400)
+})
+
+test('first portal visit creates the starter profile the original app would have', async () => {
+  const user = await firebaseUser('firstvisit')
+  const profile = await call('GET', '/api/member/profile', { token: user.token })
+  assert.equal(profile.status, 200, profile.text)
+  assert.equal(profile.json.username, '')
+  const stored = await readDoc(`users/${user.uid}`)
+  assert.equal(stored.role.stringValue, 'user')
+  assert.ok(stored.createdAt.stringValue)
+})
+
+test('profile validation rejects unsafe links and oversized photos', async () => {
+  const user = await firebaseUser('validate')
+  await setup(user, { displayName: 'Val Idate', username: `validate-${run}` })
+  const base = { displayName: 'Val Idate', links: [] }
+
+  for (const value of ['javascript:alert(1)', 'data:text/html,<b>x</b>']) {
+    const bad = await call('PUT', '/api/member/profile', { token: user.token, body: { ...base, links: [{ type: 'website', label: 'Bad', value }] } })
+    assert.equal(bad.status, 400, `${value} should be rejected`)
   }
-
-  const longName = await call('PUT', '/api/member/profile', { token, body: { ...baseProfile, displayName: 'A'.repeat(20000) } })
-  assert.equal(longName.status, 400)
-
+  const badPhone = await call('PUT', '/api/member/profile', { token: user.token, body: { ...base, links: [{ type: 'phone', label: 'Call', value: 'call me maybe' }] } })
+  assert.equal(badPhone.status, 400)
   const tooMany = await call('PUT', '/api/member/profile', {
-    token,
-    body: { ...baseProfile, links: Array.from({ length: 9 }, (_, i) => ({ label: `L${i}`, href: 'https://a.co' })) },
+    token: user.token,
+    body: { ...base, links: Array.from({ length: 13 }, (_, i) => ({ type: 'website', label: `L${i}`, value: 'a.co' })) },
   })
   assert.equal(tooMany.status, 400)
-
-  const huge = await call('PUT', '/api/member/profile', {
-    token,
-    body: { ...baseProfile, avatarSrc: 'data:image/jpeg;base64,' + 'A'.repeat(600 * 1024) },
-  })
-  // Cloud Functions parses request bodies itself (up to 10MB), so size is enforced by photo validation.
-  assert.equal(huge.status, 400)
-  assert.match(huge.json.error, /too large/)
+  const bigPhoto = await call('PUT', '/api/member/profile', { token: user.token, body: { ...base, avatarUrl: 'data:image/jpeg;base64,' + 'A'.repeat(400_000) } })
+  assert.equal(bigPhoto.status, 400)
+  assert.match(bigPhoto.json.error, /too large/)
+  assert.equal((await call('PUT', '/api/member/profile', { token: user.token, body: { ...base, displayName: 'A'.repeat(500) } })).status, 400)
 })
 
-test('public profile hides the login email and offers a contact card', async () => {
-  const { token } = (await register('public')).json
-  await call('PUT', '/api/member/profile', {
-    token,
-    body: { ...baseProfile, phone: '805-555-9876', contactEmail: 'hello@example.com', company: 'Acme; Inc', jobTitle: 'Owner' },
-  })
-
-  const profile = await call('GET', `/api/public/profile/public-${run}`)
-  assert.equal(profile.status, 200)
-  assert.equal(profile.json.email, undefined)
-  assert.equal(profile.json.id, undefined)
-  assert.equal(profile.json.phone, '805-555-9876')
-
-  const vcard = await call('GET', `/api/public/profile/public-${run}/vcard`)
-  assert.equal(vcard.status, 200)
-  assert.match(vcard.headers.get('content-type'), /text\/vcard/)
-  assert.match(vcard.text, /FN:Jordan Rivera/)
-  assert.match(vcard.text, /TEL;TYPE=CELL:805-555-9876/)
-  assert.match(vcard.text, /ORG:Acme\\; Inc/)
-
-  assert.equal((await call('GET', '/api/public/profile/does-not-exist-anywhere')).status, 404)
-})
-
-test('changing the link keeps the old link working', async () => {
-  const { token } = (await register('oldlink')).json
-  const changed = await call('PUT', '/api/member/slug', { token, body: { slug: `newlink-${run}` } })
-  assert.equal(changed.status, 200, changed.text)
-  assert.equal(changed.json.profile.slug, `newlink-${run}`)
+test('changing the link keeps the old one working, and stale handles can be reclaimed', async () => {
+  const user = await firebaseUser('mover')
+  await setup(user, { displayName: 'Mo Ver', username: `oldlink-${run}` })
+  const moved = await call('PUT', '/api/member/username', { token: user.token, body: { username: `newlink-${run}` } })
+  assert.equal(moved.status, 200, moved.text)
+  assert.equal(moved.json.profile.username, `newlink-${run}`)
 
   const viaOld = await call('GET', `/api/public/profile/oldlink-${run}`)
   assert.equal(viaOld.status, 200)
-  assert.equal(viaOld.json.slug, `newlink-${run}`)
+  assert.equal(viaOld.json.username, `newlink-${run}`)
 
-  const taken = await call('PUT', '/api/member/slug', { token, body: { slug: `reg-${run}` } })
-  assert.equal(taken.status, 409)
-  assert.equal((await call('PUT', '/api/member/slug', { token, body: { slug: 'admin' } })).status, 400)
+  // A handle whose owner's profile no longer exists is free again.
+  await seed(`usernames/stale-${run}`, { uid: 'deleted-user', claimedAt: '2026-01-01T00:00:00.000Z' })
+  assert.equal((await call('PUT', '/api/member/username', { token: user.token, body: { username: `stale-${run}` } })).status, 200)
+  assert.equal((await call('PUT', '/api/member/username', { token: user.token, body: { username: 'admin' } })).status, 400)
 })
 
-test('password reset replaces the password and signs out old sessions', async () => {
-  const { token: oldToken } = (await register('reset')).json
-  const email = `reset-${run}@test.dev`
-
-  // Unknown and known emails get the same answer.
-  assert.equal((await call('POST', '/api/member/password-reset/request', { body: { email: `ghost-${run}@test.dev` } })).status, 200)
-  assert.equal((await call('POST', '/api/member/password-reset/request', { body: { email } })).status, 200)
-
-  // The real token only exists in the email, so plant a known one directly in Firestore.
-  const memberId = (await call('GET', '/api/member/profile', { token: oldToken })).json.id
-  assert.ok(memberId)
-  const resetToken = crypto.randomBytes(32).toString('hex')
-  const docId = crypto.createHash('sha256').update(resetToken).digest('hex')
-  const planted = await fetch(`${FIRESTORE}/passwordResets/${docId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
-    body: JSON.stringify({
-      fields: {
-        memberId: { stringValue: memberId },
-        expiresAt: { timestampValue: new Date(Date.now() + 60_000).toISOString() },
-      },
-    }),
-  })
-  assert.equal(planted.status, 200)
-
-  const bad = await call('POST', '/api/member/password-reset/confirm', { body: { token: 'nope', password: 'a brand new password' } })
-  assert.equal(bad.status, 400)
-
-  const confirmed = await call('POST', '/api/member/password-reset/confirm', { body: { token: resetToken, password: 'a brand new password' } })
-  assert.equal(confirmed.status, 200, confirmed.text)
-  assert.ok(confirmed.json.token)
-
-  assert.equal((await call('GET', '/api/member/session', { token: oldToken })).status, 401)
-  assert.equal((await call('POST', '/api/member/password-reset/confirm', { body: { token: resetToken, password: 'another password!' } })).status, 400)
-  assert.equal((await call('POST', '/api/member/login', { body: { email, password: 'a brand new password' } })).status, 200)
-})
-
-// aurataps.net traffic arrives through Netlify's proxy, which names the visitor in its own header.
-test('sign-ups from one address are rate limited, including through Netlify', async () => {
-  const signUp = (i, headers) =>
-    call('POST', '/api/member/register', {
-      body: { email: `spam${i}-${run}@test.dev`, password: 'correct horse battery', displayName: 'Spam', slug: `spam${i}-${run}` },
-      headers,
-    })
-
+test('link setups from one address are rate limited, including through Netlify', async () => {
+  const users = await Promise.all(Array.from({ length: 32 }, (_, i) => firebaseUser(`bulk${i}`)))
   const statuses = []
   for (let i = 0; i < 31; i++) {
-    statuses.push((await signUp(i, { 'X-Nf-Client-Connection-Ip': '203.0.113.7', 'X-Forwarded-For': '10.0.0.1' })).status)
+    const res = await call('POST', '/api/member/setup', {
+      token: users[i].token,
+      body: { displayName: 'Bulk', username: `bulk${i}-${run}` },
+      headers: { 'X-Nf-Client-Connection-Ip': '203.0.113.7', 'X-Forwarded-For': '10.0.0.1' },
+    })
+    statuses.push(res.status)
   }
   assert.equal(statuses.filter((status) => status === 200).length, 30)
   assert.equal(statuses.at(-1), 429)
-
-  // A different visitor behind the same proxy is not blocked.
-  assert.equal((await signUp(99, { 'X-Nf-Client-Connection-Ip': '203.0.113.8', 'X-Forwarded-For': '10.0.0.1' })).status, 200)
-})
-
-test('login attempts for one email are rate limited', async () => {
-  await register('brute')
-  let last
-  for (let i = 0; i < 11; i++) {
-    last = await call('POST', '/api/member/login', { body: { email: `brute-${run}@test.dev`, password: `guess-${i}` } })
-  }
-  assert.equal(last.status, 429)
+  const other = await call('POST', '/api/member/setup', {
+    token: users[31].token,
+    body: { displayName: 'Bulk', username: `bulk31-${run}` },
+    headers: { 'X-Nf-Client-Connection-Ip': '203.0.113.8', 'X-Forwarded-For': '10.0.0.1' },
+  })
+  assert.equal(other.status, 200)
 })
 
 test('chat threads, admin replies, and the Telegram webhook', async () => {

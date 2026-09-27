@@ -1,31 +1,3 @@
-// Built-in pages shown when the API has no member with that link (e.g. before Jay creates a portal account).
-export const AURA_PROFILE_PAGES = {
-  jay: {
-    displayName: 'Jay',
-    headline: 'Founder of Aura Taps',
-    subheadline: 'Tap to connect.',
-    avatarSrc: '/images/product-test.webp',
-    links: [
-      { label: 'Book a Consultation', href: '/contact' },
-      { label: 'Buy an Aura Tap Card', href: '/pricing' },
-      { label: 'My Portfolio', href: 'https://aurataps.net' },
-      { label: 'Leave a Google Review', href: 'https://g.page/r/Cf0V3l8f8jY7EAE/review' },
-    ],
-  },
-  placeholder: {
-    displayName: 'Your Name',
-    headline: 'Aura Tap Profile',
-    subheadline: 'Add your links and contact buttons here.',
-    avatarSrc: '/auralogo.png',
-    links: [
-      { label: 'Book a Consultation', href: '/contact' },
-      { label: 'Buy an Aura Tap Card', href: '/pricing' },
-      { label: 'My Portfolio', href: 'https://aurataps.net' },
-      { label: 'Leave a Google Review', href: 'https://g.page/r/Cf0V3l8f8jY7EAE/review' },
-    ],
-  },
-}
-
 export const HOW_IT_WORKS_STEPS = [
   {
     step: '01',

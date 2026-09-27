@@ -8,6 +8,13 @@
   status = 200
   force = true
 
+# Firebase web config for the member portal's sign-in, published by Firebase Hosting.
+[[redirects]]
+  from = "/__/firebase/*"
+  to = "https://auratap-ee8a0.web.app/__/firebase/:splat"
+  status = 200
+  force = true
+
 # Single-page app: pages and members' tap links (aurataps.net/<link>) all load index.html,
 # which then shows the right page. Real files like /assets/* are served first.
 [[redirects]]

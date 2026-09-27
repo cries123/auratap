@@ -7,8 +7,8 @@
     "node": "20"
   },
   "scripts": {
-    "serve": "firebase emulators:start --only functions,firestore",
-    "test": "firebase emulators:exec --only functions,firestore --project demo-auratap \"node --test test/*.test.js\"",
+    "serve": "firebase emulators:start --only auth,functions,firestore",
+    "test": "firebase emulators:exec --only auth,functions,firestore --project demo-auratap \"node --test test/*.test.js\"",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions,firestore",

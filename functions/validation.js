@@ -1,8 +1,5 @@
 import crypto from 'node:crypto'
-import { promisify } from 'node:util'
 import { RESERVED_SLUGS } from './config.js'
-
-const scrypt = promisify(crypto.scrypt)
 
 export class ValidationError extends Error {
   constructor(message, status = 400) {
@@ -11,31 +8,25 @@ export class ValidationError extends Error {
   }
 }
 
+// Member profiles use the Aura platform's existing Firestore format (users/{uid}):
+// displayName, username, jobTitle, location, bio, tags[], avatarUrl, bannerUrl, and
+// links[] of { type, label, value }.
+export const LINK_TYPES = ['website', 'instagram', 'twitter', 'linkedin', 'phone', 'email', 'other']
+
 export const LIMITS = {
   displayName: 80,
-  headline: 120,
-  subheadline: 160,
-  company: 80,
   jobTitle: 80,
-  phone: 30,
-  email: 254,
+  location: 80,
+  bio: 300,
+  tags: 10,
+  tag: 30,
   linkLabel: 40,
-  linkHref: 500,
-  links: 8,
+  linkValue: 500,
+  links: 12,
   avatarChars: 300_000,
-  password: { min: 8, max: 128 },
-  slug: { min: 3, max: 40 },
-}
-
-export async function hashPassword(password, salt) {
-  const key = await scrypt(password, salt, 64)
-  return key.toString('hex')
-}
-
-export async function verifyPassword(password, salt, expectedHash) {
-  const actual = Buffer.from(await hashPassword(password, salt), 'hex')
-  const expected = Buffer.from(expectedHash, 'hex')
-  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected)
+  bannerChars: 600_000,
+  email: 254,
+  username: { min: 3, max: 30 },
 }
 
 export function safeEqual(a, b) {
@@ -61,27 +52,28 @@ export function escapeHtml(value) {
     .replace(/'/g, '&#39;')
 }
 
-export function normalizeSlug(value = '') {
-  return String(value)
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+// Existing handles (usernames/{handle}) are lowercase letters, numbers, "_" and "-".
+// Returns '' for anything that can't be a handle, so lookups simply find nothing.
+export function handleForLookup(value) {
+  const handle = String(value || '').trim().toLowerCase()
+  return /^[a-z0-9_-]{1,64}$/.test(handle) ? handle : ''
 }
 
-export function validateSlug(value) {
-  const slug = normalizeSlug(value)
-  if (slug.length < LIMITS.slug.min) {
-    throw new ValidationError(`Your link must be at least ${LIMITS.slug.min} characters.`)
+export function validateNewUsername(value) {
+  const username = String(value || '').trim().toLowerCase()
+  if (!/^[a-z0-9_-]+$/.test(username)) {
+    throw new ValidationError('Your link can only use letters, numbers, hyphens, and underscores.')
   }
-  if (slug.length > LIMITS.slug.max) {
-    throw new ValidationError(`Your link can be at most ${LIMITS.slug.max} characters.`)
+  if (username.length < LIMITS.username.min) {
+    throw new ValidationError(`Your link must be at least ${LIMITS.username.min} characters.`)
   }
-  if (RESERVED_SLUGS.has(slug)) {
+  if (username.length > LIMITS.username.max) {
+    throw new ValidationError(`Your link can be at most ${LIMITS.username.max} characters.`)
+  }
+  if (RESERVED_SLUGS.has(username)) {
     throw new ValidationError('That link is reserved. Please choose another.')
   }
-  return slug
+  return username
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -99,19 +91,10 @@ export function validateEmail(value, { optional = false, field = 'email address'
   return email
 }
 
-export function validatePassword(value) {
-  const password = String(value || '')
-  if (password.length < LIMITS.password.min) {
-    throw new ValidationError(`Password must be at least ${LIMITS.password.min} characters.`)
-  }
-  if (password.length > LIMITS.password.max) {
-    throw new ValidationError(`Password can be at most ${LIMITS.password.max} characters.`)
-  }
-  return password
-}
-
-export function cleanText(value, max, label, { required = false } = {}) {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim()
+export function cleanText(value, max, label, { required = false, multiline = false } = {}) {
+  const text = multiline
+    ? String(value ?? '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+    : String(value ?? '').replace(/\s+/g, ' ').trim()
   if (required && !text) {
     throw new ValidationError(`${label} is required.`)
   }
@@ -121,66 +104,88 @@ export function cleanText(value, max, label, { required = false } = {}) {
   return text
 }
 
-export function cleanPhone(value) {
-  const phone = cleanText(value, LIMITS.phone, 'Phone number')
-  if (phone && !/^[+()\d\s.-]{7,}$/.test(phone)) {
-    throw new ValidationError('Please enter a valid phone number.')
+export function cleanTags(value) {
+  const tags = (Array.isArray(value) ? value : String(value || '').split(','))
+    .map((tag) => String(tag).replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+  if (tags.length > LIMITS.tags) {
+    throw new ValidationError(`You can add up to ${LIMITS.tags} tags.`)
   }
-  return phone
+  for (const tag of tags) {
+    if (tag.length > LIMITS.tag) throw new ValidationError(`Tags can be at most ${LIMITS.tag} characters each.`)
+  }
+  return tags
 }
 
-// Buttons may point to web pages, email, phone/SMS, or a page on this site.
-// Bare domains like "instagram.com/me" get https:// added.
-export function cleanHref(value, label) {
-  let href = String(value || '').trim()
-  if (!href) {
-    throw new ValidationError(`Add a link for the "${label}" button.`)
-  }
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(href) && !href.startsWith('/') && /^[\w-]+(\.[\w-]+)+(\/|\?|#|$)/.test(href)) {
-    href = `https://${href}`
-  }
-  const allowed = /^https?:\/\/[^\s]+$/i.test(href)
-    || /^(mailto|tel|sms):[^\s]+$/i.test(href)
-    || /^\/(?!\/)[^\s]*$/.test(href)
-  if (!allowed) {
-    throw new ValidationError(`The link for "${label}" isn't supported. Use a web address, email, or phone number.`)
-  }
-  if (href.length > LIMITS.linkHref) {
-    throw new ValidationError(`The link for "${label}" is too long.`)
-  }
-  return href
+const DEFAULT_LABELS = {
+  website: 'Website',
+  instagram: 'Instagram',
+  twitter: 'X (Twitter)',
+  linkedin: 'LinkedIn',
+  phone: 'Call me',
+  email: 'Email me',
+  other: 'Link',
 }
 
-export function cleanLinks(links) {
+// Validates one button's value for its type. Web links may be written without https://
+// (the profile page adds it); anything with another scheme (javascript:, data:, ...) is refused.
+function cleanLinkValue(type, value, label) {
+  const text = String(value || '').trim()
+  if (!text) throw new ValidationError(`Add a value for the "${label}" button.`)
+  if (text.length > LIMITS.linkValue) throw new ValidationError(`The "${label}" button's link is too long.`)
+  if (type === 'phone') {
+    const phone = text.replace(/^tel:/i, '')
+    if (!/^[+()\d\s.-]{7,30}$/.test(phone)) throw new ValidationError(`"${label}" needs a valid phone number.`)
+    return phone
+  }
+  if (type === 'email') {
+    return validateEmail(text.replace(/^mailto:/i, ''), { field: `email for "${label}"` })
+  }
+  if (/\s/.test(text)) throw new ValidationError(`"${label}" needs a web address without spaces.`)
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(text)
+  if (scheme && !/^https?:\/\//i.test(text) && !/^(mailto|tel):/i.test(text)) {
+    throw new ValidationError(`The link for "${label}" isn't supported. Use a web address.`)
+  }
+  return text
+}
+
+// `storedLinks` are the member's current buttons: any button sent back unchanged is kept exactly
+// as stored (the original app didn't validate them), and only new or edited buttons are checked.
+export function cleanLinks(links, storedLinks = []) {
   if (!Array.isArray(links)) {
     throw new ValidationError('Buttons must be a list.')
   }
-  const cleaned = links
-    .map((link) => ({ label: String(link?.label || '').trim(), href: String(link?.href || '').trim() }))
-    .filter((link) => link.label || link.href)
-  if (cleaned.length > LIMITS.links) {
+  const stored = new Map((Array.isArray(storedLinks) ? storedLinks : []).map((link) => [JSON.stringify([link?.type, link?.label, link?.value]), link]))
+  const cleaned = links.filter((link) => String(link?.label || '').trim() || String(link?.value || '').trim())
+  if (cleaned.length > Math.max(LIMITS.links, stored.size)) {
     throw new ValidationError(`You can add up to ${LIMITS.links} buttons.`)
   }
   return cleaned.map((link) => {
-    const label = cleanText(link.label, LIMITS.linkLabel, 'Button text', { required: true })
-    return { label, href: cleanHref(link.href, label) }
+    const unchanged = stored.get(JSON.stringify([link?.type, link?.label, link?.value]))
+    if (unchanged) return unchanged
+    const type = LINK_TYPES.includes(link?.type) ? link.type : 'other'
+    const label = cleanText(String(link?.label || '').trim() || DEFAULT_LABELS[type], LIMITS.linkLabel, 'Button text', { required: true })
+    return { type, label, value: cleanLinkValue(type, link?.value, label) }
   })
 }
 
-export function cleanAvatar(value) {
-  const avatar = String(value || '').trim()
-  if (!avatar) return ''
-  if (avatar.startsWith('data:')) {
-    if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(avatar)) {
-      throw new ValidationError('Your photo must be a JPG, PNG, or WebP image.')
+function cleanImage(value, maxChars, what) {
+  const image = String(value || '').trim()
+  if (!image) return ''
+  if (image.startsWith('data:')) {
+    if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image)) {
+      throw new ValidationError(`Your ${what} must be a JPG, PNG, or WebP image.`)
     }
-    if (avatar.length > LIMITS.avatarChars) {
-      throw new ValidationError('Your photo is too large. Please choose a smaller image.')
+    if (image.length > maxChars) {
+      throw new ValidationError(`Your ${what} is too large. Please choose a smaller image.`)
     }
-    return avatar
+    return image
   }
-  if (/^https:\/\/[^\s]+$/i.test(avatar) || /^\/(?!\/)[^\s]*$/.test(avatar)) {
-    return avatar.slice(0, LIMITS.linkHref)
+  if (/^https:\/\/[^\s]+$/i.test(image) && image.length <= LIMITS.linkValue) {
+    return image
   }
-  throw new ValidationError('Your photo must be an uploaded image or an https:// link.')
+  throw new ValidationError(`Your ${what} must be an uploaded image or an https:// link.`)
 }
+
+export const cleanAvatar = (value) => cleanImage(value, LIMITS.avatarChars, 'photo')
+export const cleanBanner = (value) => cleanImage(value, LIMITS.bannerChars, 'banner')

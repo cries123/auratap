@@ -70,24 +70,3 @@ export async function sendAdminResponseEmail(visitorEmail, visitorName, adminRes
     console.error('Error sending reply email:', error)
   }
 }
-
-// Returns false when email isn't configured, so the caller can log it for support.
-export async function sendPasswordResetEmail(email, displayName, token) {
-  const link = `${FRONTEND_URL}/reset-password?token=${encodeURIComponent(token)}`
-  try {
-    return await sendEmail({
-      to: email,
-      subject: 'Reset your Aura Tap password',
-      html: `
-        <p>Hi ${escapeHtml(displayName)},</p>
-        <p>We received a request to reset the password for your Aura Tap account.</p>
-        <p><a href="${escapeHtml(link)}">Choose a new password</a></p>
-        <p>This link expires in 1 hour. If you didn't ask for this, you can ignore this email.</p>
-        <p>The Aura Tap team</p>
-      `,
-    })
-  } catch (error) {
-    console.error('Error sending password reset email:', error)
-    return false
-  }
-}

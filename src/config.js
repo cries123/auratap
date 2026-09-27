@@ -12,8 +12,6 @@ export const MEMBER_API_BASE = import.meta.env.VITE_MEMBER_API_BASE || (typeof w
 
 export const ADMIN_TOKEN_KEY = 'auratap_admin_token'
 
-export const MEMBER_TOKEN_KEY = 'auratap_member_token'
-
 const CURRENT_ORIGIN = typeof window !== 'undefined' ? window.location.origin : ''
 const CONFIGURED_SITE_URL = (import.meta.env.VITE_PUBLIC_SITE_URL || '').replace(/\/$/, '')
 

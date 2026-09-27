@@ -15,11 +15,21 @@ function fold(line) {
   return chunks.join('\r\n')
 }
 
+// Same rule the tap page uses: web links written without a scheme get https:// added.
+export function linkHref(link) {
+  const value = String(link.value || '').trim()
+  if (link.type === 'phone') return `tel:${value.replace(/^tel:/i, '')}`
+  if (link.type === 'email') return `mailto:${value.replace(/^mailto:/i, '')}`
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(value)) return value
+  return `https://${value.replace(/^\/+/, '')}`
+}
+
 export function buildVCard(profile, profileUrl) {
-  const name = profile.displayName || 'Aura Tap Contact'
+  const name = profile.displayName || profile.username || 'Aura Tap Contact'
   const parts = name.trim().split(/\s+/)
   const lastName = parts.length > 1 ? parts.pop() : ''
   const firstName = parts.join(' ')
+  const links = profile.links || []
 
   const lines = [
     'BEGIN:VCARD',
@@ -27,17 +37,21 @@ export function buildVCard(profile, profileUrl) {
     `N:${escapeValue(lastName)};${escapeValue(firstName)};;;`,
     `FN:${escapeValue(name)}`,
   ]
-  if (profile.company) lines.push(`ORG:${escapeValue(profile.company)}`)
   if (profile.jobTitle) lines.push(`TITLE:${escapeValue(profile.jobTitle)}`)
-  if (profile.phone) lines.push(`TEL;TYPE=CELL:${escapeValue(profile.phone)}`)
-  if (profile.contactEmail) lines.push(`EMAIL;TYPE=INTERNET:${escapeValue(profile.contactEmail)}`)
-  lines.push(`URL:${escapeValue(profileUrl)}`)
-  for (const link of profile.links || []) {
-    if (/^https?:\/\//i.test(link.href)) lines.push(`URL:${escapeValue(link.href)}`)
+  for (const link of links.filter((l) => l.type === 'phone')) {
+    lines.push(`TEL;TYPE=CELL:${escapeValue(String(link.value).replace(/^tel:/i, ''))}`)
   }
-  if (profile.headline) lines.push(`NOTE:${escapeValue(profile.headline)}`)
+  for (const link of links.filter((l) => l.type === 'email')) {
+    lines.push(`EMAIL;TYPE=INTERNET:${escapeValue(String(link.value).replace(/^mailto:/i, ''))}`)
+  }
+  if (profile.location) lines.push(`ADR;TYPE=WORK:;;;${escapeValue(profile.location)};;;`)
+  lines.push(`URL:${escapeValue(profileUrl)}`)
+  for (const link of links.filter((l) => l.type !== 'phone' && l.type !== 'email')) {
+    lines.push(`URL:${escapeValue(linkHref(link))}`)
+  }
+  if (profile.bio) lines.push(`NOTE:${escapeValue(profile.bio)}`)
 
-  const photo = /^data:image\/(jpeg|png);base64,(.+)$/.exec(profile.avatarSrc || '')
+  const photo = /^data:image\/(jpeg|png);base64,(.+)$/.exec(profile.avatarUrl || '')
   if (photo) {
     lines.push(`PHOTO;ENCODING=b;TYPE=${photo[1] === 'png' ? 'PNG' : 'JPEG'}:${photo[2]}`)
   }
