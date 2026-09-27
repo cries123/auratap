@@ -220,12 +220,12 @@ app.post('/api/contact', contactFormLimiter, async (req, res) => {
   try {
     const { name, company, email, teamSize, message } = req.body
 
-    if (!name || !company || !email || !teamSize || !message) {
+    if (!name || !email || !teamSize || !message) {
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
     const normalizedMessage = [
-      `Company: ${company}`,
+      `Company: ${company || 'Not provided'}`,
       `Team Size: ${teamSize}`,
       '',
       message,
@@ -556,7 +556,7 @@ async function startTelegramPolling() {
           }
         }
       }
-    } catch (e) {
+    } catch {
       // Ignore network timeouts
     }
   }, 3000)

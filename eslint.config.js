@@ -26,4 +26,17 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    files: ['server/**/*.js', 'functions/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    // The Firebase entry point is CommonJS; its helper modules are still ES modules.
+    files: ['functions/index.js'],
+    languageOptions: {
+      sourceType: 'commonjs',
+    },
+  },
 ])

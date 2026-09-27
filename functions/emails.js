@@ -1,4 +1,3 @@
-/* global process */
 
 const RESEND_API_URL = 'https://api.resend.com/emails'
 

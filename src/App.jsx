@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link, NavLink, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import './App.css'
 
 const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'sales@auratap.com'
@@ -30,7 +30,7 @@ const AURA_PROFILE_PAGES = {
     name: 'Jay',
     headline: 'Founder of Aura Taps',
     subheadline: 'Tap to connect.',
-    avatarSrc: '/product-test.png',
+    avatarSrc: '/images/product-test.webp',
     links: [
       { label: 'Book a Consultation', href: '/contact' },
       { label: 'Buy an Aura Tap Card', href: '/pricing' },
@@ -64,6 +64,33 @@ function getMemberAuthHeaders() {
   return token
     ? { Authorization: `Bearer ${token}` }
     : {}
+}
+
+const DEFAULT_TITLE = 'Aura Tap | NFC Cards and Wristbands for Modern Networking'
+const DEFAULT_DESCRIPTION =
+  'Aura Tap helps professionals and teams share contact info instantly with NFC cards and wristbands. Serving clients nationwide with setup and support.'
+
+function setMetaContent(selector, content) {
+  document.querySelector(selector)?.setAttribute('content', content)
+}
+
+// Keeps the tab title, description, canonical URL, and social tags in sync with the current page.
+function usePageMeta(title, description = DEFAULT_DESCRIPTION) {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    const fullTitle = title ? `${title} | Aura Tap` : DEFAULT_TITLE
+    const url = `${window.location.origin}${pathname}`
+
+    document.title = fullTitle
+    setMetaContent('meta[name="description"]', description)
+    setMetaContent('meta[property="og:title"]', fullTitle)
+    setMetaContent('meta[property="og:description"]', description)
+    setMetaContent('meta[property="og:url"]', url)
+    setMetaContent('meta[name="twitter:title"]', fullTitle)
+    setMetaContent('meta[name="twitter:description"]', description)
+    document.querySelector('link[rel="canonical"]')?.setAttribute('href', url)
+  }, [title, description, pathname])
 }
 
 function trackEvent(eventName, payload = {}) {
@@ -209,18 +236,21 @@ function SiteHeader() {
 function AuraProfilePage() {
   const { profileSlug = '' } = useParams()
   const key = profileSlug.toLowerCase()
+  const isReservedPath = RESERVED_PATHS.has(key)
   const [profile, setProfile] = useState(null)
   const [status, setStatus] = useState('loading')
 
-  useEffect(() => {
-    let isMounted = true
+  usePageMeta(
+    profile ? profile.name : 'Profile',
+    profile ? `${profile.name}: ${profile.headline}` : undefined,
+  )
 
-    if (RESERVED_PATHS.has(key)) {
-      setStatus('not-found')
-      return () => {
-        isMounted = false
-      }
+  useEffect(() => {
+    if (isReservedPath) {
+      return undefined
     }
+
+    let isMounted = true
 
     async function loadProfile() {
       try {
@@ -259,9 +289,9 @@ function AuraProfilePage() {
     return () => {
       isMounted = false
     }
-  }, [key])
+  }, [key, isReservedPath])
 
-  if (status === 'loading') {
+  if (status === 'loading' && !isReservedPath) {
     return (
       <main className="profile-page-shell">
         <section className="profile-page-card">
@@ -271,7 +301,7 @@ function AuraProfilePage() {
     )
   }
 
-  if (!profile || status === 'not-found') {
+  if (isReservedPath || !profile || status === 'not-found') {
     return (
       <main className="profile-page-shell">
         <section className="profile-page-card">
@@ -422,6 +452,7 @@ function CrossIcon() {
 }
 
 function HomePage() {
+  usePageMeta()
   const clientLogos = [
     'Central Coast Plumbing',
     'SLO Real Estate Group',
@@ -770,13 +801,17 @@ function HomePage() {
 }
 
 function HowItWorksPage() {
+  usePageMeta(
+    'How It Works',
+    'See how Aura Tap NFC cards and wristbands share your contact info, links, and booking page with one tap. No app needed.',
+  )
   return (
     <>
       <SubpageHero
         eyebrow="How It Works"
-        title="A Simple Three-Step Process"
-        subtitle="This page outlines the complete user flow from initial tap to profile engagement and ongoing updates."
-        chips={['Three simple steps', 'Update anytime', 'No reprinting needed']}
+        title="Share your details with a single tap."
+        subtitle="Hold your Aura card or wristband near any modern phone and your digital profile opens instantly. Nothing to download, nothing to type."
+        chips={['Works on iPhone and Android', 'No app required', 'Update anytime']}
         mediaImageSrc="/images/products-howto.webp"
         mediaImageAlt="Aura NFC cards and wristbands displayed on a wooden surface"
       />
@@ -795,16 +830,17 @@ function HowItWorksPage() {
 
       <section className="panel tap-demo">
         <div className="tap-demo-copy">
-          <p className="eyebrow">Platform Preview</p>
-          <h2>Preview the Post-Tap Experience</h2>
+          <p className="eyebrow">What they see</p>
+          <h2>Your profile, one tap away.</h2>
           <p>
-            Buyers convert faster when they can picture the result. This mockup
-            shows the profile someone sees after tapping your card or wristband.
+            When someone taps your card or wristband, your profile opens on their
+            phone. From there they can save your contact, call you, book a meeting,
+            or visit your links right away.
           </p>
           <ul className="demo-points">
-            <li>Save contact in seconds</li>
-            <li>Open social and booking links instantly</li>
-            <li>Present one polished page instead of five separate links</li>
+            <li>Save your contact to their phone in one step</li>
+            <li>Open your social, booking, and portfolio links</li>
+            <li>One clean page instead of five separate links</li>
           </ul>
         </div>
         <figure className="tap-demo-photo-frame" aria-label="Aura Tap profile preview after card tap">
@@ -813,9 +849,7 @@ function HowItWorksPage() {
             alt="Aura card and phone profile preview after tapping"
             className="tap-demo-photo"
           />
-          <figcaption>
-            Tap once and your full profile appears instantly.
-          </figcaption>
+          <figcaption>An example Aura Tap profile page.</figcaption>
         </figure>
       </section>
     </>
@@ -823,6 +857,10 @@ function HowItWorksPage() {
 }
 
 function TestimonialsPage() {
+  usePageMeta(
+    'Customer Reviews',
+    'Read what realtors, contractors, photographers, and teams say about using Aura Tap NFC cards and wristbands.',
+  )
   return (
     <>
       <SubpageHero
@@ -880,14 +918,36 @@ function SubpageHero({
   )
 }
 
-function ContactPage() {
-  const [formData, setFormData] = useState({
+const TEAM_SIZE_OPTIONS = ['Just me', '2–10 people', '11–50 people', '51+ people']
+
+// Pricing page "Get started" buttons link here with ?plan=<id> so the form arrives pre-filled.
+const PRICING_PLANS = {
+  card: { label: 'NFC Card ($20 each)', teamSize: 'Just me' },
+  wristband: { label: 'NFC Wristband ($25 each)', teamSize: 'Just me' },
+  branding: { label: 'Custom Branding Add-On ($5 per unit)' },
+  starter: { label: 'Starter Team bundle ($225 / 10 cards)', teamSize: '2–10 people' },
+  growth: { label: 'Growth Team bundle ($349 / 25 mixed units)', teamSize: '11–50 people' },
+  enterprise: { label: 'Enterprise Rollout ($499 / 50 mixed units)', teamSize: '11–50 people' },
+}
+
+function emptyContactForm(plan) {
+  return {
     name: '',
     company: '',
     email: '',
-    teamSize: '',
-    message: '',
-  })
+    teamSize: plan?.teamSize || '',
+    message: plan ? `I'm interested in the ${plan.label}.` : '',
+  }
+}
+
+function ContactPage() {
+  usePageMeta(
+    'Contact Us',
+    'Book a 5-minute demo or ask a question. We help individuals and teams nationwide choose the right NFC card or wristband setup.',
+  )
+  const [searchParams] = useSearchParams()
+  const selectedPlan = PRICING_PLANS[searchParams.get('plan')]
+  const [formData, setFormData] = useState(() => emptyContactForm(selectedPlan))
   const [status, setStatus] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -925,13 +985,7 @@ function ContactPage() {
         throw new Error(data.error || 'Unable to send inquiry')
       }
 
-      setFormData({
-        name: '',
-        company: '',
-        email: '',
-        teamSize: '',
-        message: '',
-      })
+      setFormData(emptyContactForm())
       setStatus('Thanks, your inquiry was sent. We will follow up shortly.')
       trackEvent('contact_form_submit_success', { source: 'contact_page' })
     } catch (submitError) {
@@ -954,6 +1008,8 @@ function ContactPage() {
           'Nationwide support',
           'Setup guidance included',
         ]}
+        mediaImageSrc="/images/product-action.webp"
+        mediaImageAlt="Aura NFC wristband and card held in hand"
       />
 
       <section className="panel contact-layout">
@@ -961,8 +1017,10 @@ function ContactPage() {
           <label htmlFor="name">Name</label>
           <input id="name" name="name" value={formData.name} onChange={onChange} required />
 
-          <label htmlFor="company">Company</label>
-          <input id="company" name="company" value={formData.company} onChange={onChange} required />
+          <label htmlFor="company">
+            Company <span className="field-optional">(optional)</span>
+          </label>
+          <input id="company" name="company" value={formData.company} onChange={onChange} />
 
           <label htmlFor="email">Email</label>
           <input
@@ -974,18 +1032,15 @@ function ContactPage() {
             required
           />
 
-          <label htmlFor="teamSize">Team Size</label>
-          <input
-            id="teamSize"
-            name="teamSize"
-            type="number"
-            min="1"
-            value={formData.teamSize}
-            onChange={onChange}
-            required
-          />
+          <label htmlFor="teamSize">How many people need a card or wristband?</label>
+          <select id="teamSize" name="teamSize" value={formData.teamSize} onChange={onChange} required>
+            <option value="" disabled>Select one</option>
+            {TEAM_SIZE_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
 
-          <label htmlFor="message">Short Message</label>
+          <label htmlFor="message">Message</label>
           <textarea
             id="message"
             name="message"
@@ -1019,7 +1074,23 @@ function ContactPage() {
   )
 }
 
+function PlanLink({ plan, featured = false }) {
+  return (
+    <Link
+      className={`btn ${featured ? 'btn-primary' : 'btn-secondary'} pricing-cta`}
+      to={`/contact?plan=${plan}`}
+      onClick={() => trackEvent('pricing_plan_click', { plan })}
+    >
+      Get started
+    </Link>
+  )
+}
+
 function PricingPage() {
+  usePageMeta(
+    'Pricing',
+    'One-time pricing for Aura Tap NFC cards ($20), wristbands ($25), and team bundles from $225. No monthly fees.',
+  )
   return (
     <>
       <SubpageHero
@@ -1056,18 +1127,21 @@ function PricingPage() {
             <h3>NFC Card</h3>
             <p className="price">$20 each</p>
             <p>One-time setup and unlimited profile edits.</p>
+            <PlanLink plan="card" />
           </article>
           <article>
             <p className="pricing-plan-tag">Best for events</p>
             <h3>NFC Wristband</h3>
             <p className="price">$25 each</p>
             <p>Best for field teams and live-event networking.</p>
+            <PlanLink plan="wristband" />
           </article>
           <article>
             <p className="pricing-plan-tag">Brand upgrade</p>
             <h3>Custom Branding Add-On</h3>
             <p className="price">$5 per unit</p>
             <p>Logo and brand styling for a stronger first impression.</p>
+            <PlanLink plan="branding" />
           </article>
         </div>
 
@@ -1078,18 +1152,21 @@ function PricingPage() {
             <h3>Starter Team</h3>
             <p className="price"><s className="price-was">$299</s> $225 / 10 cards</p>
             <p>Includes onboarding support for your full team rollout.</p>
+            <PlanLink plan="starter" />
           </article>
           <article className="pricing-featured">
             <p className="pricing-pill">Most Popular</p>
             <h3>Growth Team</h3>
             <p className="price"><s className="price-was">$599</s> $349 / 25 mixed units</p>
             <p>Mix cards and wristbands for office staff and field reps.</p>
+            <PlanLink plan="growth" featured />
           </article>
           <article>
             <p className="pricing-plan-tag">Scale package</p>
             <h3>Enterprise Rollout</h3>
             <p className="price"><s className="price-was">$1,099</s> $499 / 50 mixed units</p>
             <p>Includes onboarding call, activation support, and priority service.</p>
+            <PlanLink plan="enterprise" />
           </article>
         </div>
         <p className="pricing-note">
@@ -1105,6 +1182,10 @@ function PricingPage() {
 }
 
 function WarrantyPage() {
+  usePageMeta(
+    'Warranty',
+    'Every Aura Tap NFC card and wristband includes a 12-month limited warranty against manufacturing defects.',
+  )
   return (
     <>
       <SubpageHero
@@ -1201,6 +1282,7 @@ function WarrantyPage() {
 }
 
 function PrivacyPage() {
+  usePageMeta('Privacy Policy', 'How Aura Tap collects, uses, and protects your personal information.')
   return (
     <>
       <SubpageHero
@@ -1307,6 +1389,7 @@ function PrivacyPage() {
 }
 
 function TermsPage() {
+  usePageMeta('Terms of Service', 'Terms covering Aura Tap orders, payment, returns, setup, and warranty.')
   return (
     <>
       <SubpageHero
@@ -1953,7 +2036,7 @@ function AdminPageContent({ onSessionExpired }) {
     setLoading(false)
   }
 
-  async function handleSelectMessage(message) {
+  const handleSelectMessage = useCallback(async (message) => {
     try {
       const response = await fetch(`${ADMIN_API}/message/${message.id}`, {
         headers: getAdminAuthHeaders(),
@@ -1969,7 +2052,7 @@ function AdminPageContent({ onSessionExpired }) {
     } catch (error) {
       console.error('Error fetching message:', error)
     }
-  }
+  }, [ADMIN_API, handleUnauthorized])
 
   async function handleSendResponse() {
     if (!selectedMessage || !adminResponse.trim()) return
@@ -2089,7 +2172,7 @@ function AdminPageContent({ onSessionExpired }) {
     if (matchedMessage) {
       handleSelectMessage(matchedMessage)
     }
-  }, [messages])
+  }, [messages, handleSelectMessage])
 
   return (
     <div className="app-shell admin-page">
@@ -2198,6 +2281,7 @@ function AdminPageContent({ onSessionExpired }) {
 }
 
 function AdminPage() {
+  usePageMeta('Admin')
   const [authState, setAuthState] = useState(() =>
     localStorage.getItem(ADMIN_TOKEN_KEY) ? 'checking' : 'unauthenticated',
   )
@@ -2642,6 +2726,7 @@ function MemberDashboard({ onLogout }) {
 }
 
 function MemberPortalPage() {
+  usePageMeta('Member Log In', 'Log in to edit your Aura Tap profile page.')
   const [authState, setAuthState] = useState(() =>
     localStorage.getItem(MEMBER_TOKEN_KEY) ? 'checking' : 'unauthenticated',
   )
