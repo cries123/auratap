@@ -1,6 +1,6 @@
 # Aura Tap API (Firebase Cloud Functions)
 
-One Express app, deployed as the `api` function. Firebase Hosting forwards every `/api/**`
+One Express app, deployed as the `apiV2` function (2nd gen, us-central1). Firebase Hosting forwards every `/api/**`
 request to it (see `firebase.json`), so the site and API share a domain.
 
 All data lives in **Cloud Firestore**:

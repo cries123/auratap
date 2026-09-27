@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 
 const PROJECT = 'demo-auratap'
-const API = `http://127.0.0.1:5001/${PROJECT}/us-central1/api`
+const API = `http://127.0.0.1:5001/${PROJECT}/us-central1/apiV2`
 const FIRESTORE = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`
 const run = crypto.randomBytes(4).toString('hex')
 
