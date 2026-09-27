@@ -24,7 +24,7 @@ export function TermsPage() {
         </aside>
 
         <section className="panel legal-page legal-content-card">
-          <p className="legal-updated">Last updated: April 16, 2026</p>
+          <p className="legal-updated">Last updated: September 26, 2026</p>
 
         <h2 id="terms-acceptance">1. Acceptance of Terms</h2>
         <p>
@@ -43,7 +43,6 @@ export function TermsPage() {
         <h2 id="terms-pricing">3. Pricing &amp; Payment</h2>
         <ul>
           <li>All prices are listed in USD and are subject to change without notice prior to order confirmation.</li>
-          <li>Bundle prices include a one-time $99 installation &amp; setup fee.</li>
           <li>Payment is due in full at the time of purchase. We accept major credit/debit cards.</li>
           <li>Custom branding orders may require a deposit before production begins.</li>
         </ul>
@@ -57,14 +56,14 @@ export function TermsPage() {
 
         <h2>5. Installation &amp; Setup</h2>
         <p>
-          The $99 installation &amp; setup fee covers remote or in-person onboarding assistance
-          to activate and configure your NFC devices. Setup sessions must be scheduled within
-          60 days of purchase. Unused setup sessions are non-refundable after 60 days.
+          Remote or in-person onboarding assistance to activate and configure your NFC devices
+          is included with every order at no additional charge. Setup sessions must be
+          scheduled within 60 days of purchase.
         </p>
 
         <h2 id="terms-returns">6. Returns &amp; Refunds</h2>
         <ul>
-          <li><strong>Unopened/unconfigured items</strong> may be returned within 14 days of delivery for a full product refund (excluding the $99 setup fee and shipping).</li>
+          <li><strong>Unopened/unconfigured items</strong> may be returned within 14 days of delivery for a full product refund (excluding shipping).</li>
           <li><strong>Custom-branded items</strong> are non-refundable once production has begun.</li>
           <li>To initiate a return, email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> with your order number.</li>
         </ul>

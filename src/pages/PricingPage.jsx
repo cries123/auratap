@@ -18,15 +18,15 @@ function PlanLink({ plan, featured = false }) {
 export function PricingPage() {
   usePageMeta(
     'Pricing',
-    'One-time pricing for Aura Tap NFC cards ($20), wristbands ($25), and team bundles from $225. No monthly fees.',
+    'One-time pricing for Aura Tap NFC cards ($20), wristbands ($25), and team bundles from $179. Free setup, no monthly fees.',
   )
   return (
     <>
       <SubpageHero
         eyebrow="Pricing"
         title="Clear Pricing. Strong Return on Investment."
-        subtitle="Simple one-time pricing designed for solo operators, growing teams, and enterprise deployments."
-        chips={['One-time purchase', '$99 setup included with bundles', 'No recurring platform fees']}
+        subtitle="Simple one-time pricing designed for solo operators, growing teams, and larger rollouts."
+        chips={['One-time purchase', 'Free setup on every order', 'No monthly fees']}
         mediaImageSrc="/images/product-pricing.webp"
         mediaImageAlt="Aura Tap pricing showcase"
         mediaText="Professional-grade NFC cards and wristbands prepared for scalable team deployment."
@@ -55,7 +55,7 @@ export function PricingPage() {
             <p className="pricing-plan-tag">Popular for solo pros</p>
             <h3>NFC Card</h3>
             <p className="price">$20 each</p>
-            <p>One-time setup and unlimited profile edits.</p>
+            <p>Free setup and unlimited profile edits.</p>
             <PlanLink plan="card" />
           </article>
           <article>
@@ -74,32 +74,35 @@ export function PricingPage() {
           </article>
         </div>
 
-        <h2 className="pricing-heading">Enterprise Bundles</h2>
+        <h2 className="pricing-heading">Team Bundles</h2>
         <div className="pricing-grid">
           <article>
             <p className="pricing-plan-tag">Starter rollout</p>
             <h3>Starter Team</h3>
-            <p className="price"><s className="price-was">$299</s> $225 / 10 cards</p>
+            <p className="price">$179 <span className="price-unit">/ 10 cards</span></p>
+            <p className="price-compare">$17.90 per card · $200 if bought separately</p>
             <p>Includes onboarding support for your full team rollout.</p>
             <PlanLink plan="starter" />
           </article>
           <article className="pricing-featured">
             <p className="pricing-pill">Most Popular</p>
             <h3>Growth Team</h3>
-            <p className="price"><s className="price-was">$599</s> $349 / 25 mixed units</p>
+            <p className="price">$349 <span className="price-unit">/ 25 mixed units</span></p>
+            <p className="price-compare">$13.96 per unit · $500+ if bought separately</p>
             <p>Mix cards and wristbands for office staff and field reps.</p>
             <PlanLink plan="growth" featured />
           </article>
           <article>
             <p className="pricing-plan-tag">Scale package</p>
             <h3>Enterprise Rollout</h3>
-            <p className="price"><s className="price-was">$1,099</s> $499 / 50 mixed units</p>
+            <p className="price">$499 <span className="price-unit">/ 50 mixed units</span></p>
+            <p className="price-compare">$9.98 per unit · $1,000+ if bought separately</p>
             <p>Includes onboarding call, activation support, and priority service.</p>
             <PlanLink plan="enterprise" />
           </article>
         </div>
         <p className="pricing-note">
-          All bundle prices include a $99 one-time installation &amp; setup fee.
+          Setup and onboarding support are included free with every order.
         </p>
         <p className="pricing-note">
           Need a larger rollout? Use the Contact Us page and we will tailor pricing

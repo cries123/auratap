@@ -96,7 +96,7 @@ export const PRICING_PLANS = {
   card: { label: 'NFC Card ($20 each)', teamSize: 'Just me' },
   wristband: { label: 'NFC Wristband ($25 each)', teamSize: 'Just me' },
   branding: { label: 'Custom Branding Add-On ($5 per unit)' },
-  starter: { label: 'Starter Team bundle ($225 / 10 cards)', teamSize: '2–10 people' },
+  starter: { label: 'Starter Team bundle ($179 / 10 cards)', teamSize: '2–10 people' },
   growth: { label: 'Growth Team bundle ($349 / 25 mixed units)', teamSize: '11–50 people' },
   enterprise: { label: 'Enterprise Rollout ($499 / 50 mixed units)', teamSize: '11–50 people' },
 }

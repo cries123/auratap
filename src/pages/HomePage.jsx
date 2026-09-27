@@ -209,7 +209,7 @@ export function HomePage() {
             ))}
           </div>
           <p className="section-footnote">
-            Custom logo branding is available for $5 per unit, and team bundles start at $225.{' '}
+            Custom logo branding is available for $5 per unit, and team bundles start at $179.{' '}
             <Link className="text-link" to="/pricing">
               Compare all pricing <span aria-hidden="true">→</span>
             </Link>

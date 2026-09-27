@@ -1267,11 +1267,18 @@
   letter-spacing: -0.02em;
 }
 
-.price-was {
-  margin-right: 0.35rem;
+.price-unit {
   color: var(--muted);
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.pricing article .price-compare {
+  margin-top: 0.25rem;
+  color: var(--success);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .pricing-heading {
