@@ -44,17 +44,16 @@ To answer visitors by replying in Telegram, register the webhook once after depl
 curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://auratap-ee8a0.web.app/api/telegram/webhook&secret_token=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
-## Using aurataps.net for tap links
+## aurataps.net (Netlify)
 
-Cards should point at the domain this site is hosted on. To use `aurataps.net`:
+`aurataps.net` is served by Netlify, which builds the site from `main`. The root `netlify.toml`
+forwards `/api/*` to `https://auratap-ee8a0.web.app/api/*` (and on to this function) and serves
+the app for every other path, so pages and members' tap links (`aurataps.net/<link>`) work there.
 
-1. Firebase console > Hosting > **Add custom domain** > `aurataps.net` (and `www.aurataps.net`),
-   then update the DNS records it shows you (this moves the domain off Netlify).
-2. Set `VITE_PUBLIC_SITE_URL=https://aurataps.net` in the root `.env` and
-   `FRONTEND_URL=https://aurataps.net` in `functions/.env`, then build and deploy.
-
-The member portal and the card setup guide then show `aurataps.net/<link>` automatically.
-Until the domain points at Firebase, `aurataps.net/<link>` will not open member pages.
+`aurataps.net` is the default public address: the member portal, card setup guide, sitemap,
+password reset emails, and saved contact cards all use it. `auratap-ee8a0.web.app` keeps working
+as a mirror. To serve the domain from Firebase instead, add it under Hosting > Add custom domain
+and move the DNS records off Netlify; nothing else needs to change.
 
 ## Local development and tests
 

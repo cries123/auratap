@@ -1,0 +1,16 @@
+# aurataps.net is served by Netlify, built from this repo.
+
+# The API runs as a Firebase Cloud Function. Forward it through the Firebase-hosted site,
+# which rewrites /api/** to the function, so aurataps.net/api works the same as on Firebase.
+[[redirects]]
+  from = "/api/*"
+  to = "https://auratap-ee8a0.web.app/api/:splat"
+  status = 200
+  force = true
+
+# Single-page app: pages and members' tap links (aurataps.net/<link>) all load index.html,
+# which then shows the right page. Real files like /assets/* are served first.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

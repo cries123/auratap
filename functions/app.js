@@ -52,8 +52,13 @@ app.use(express.json({ limit: '400kb' }))
 const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
 
+// The visitor's address, used only for best-effort per-visitor rate limits.
+// Requests to aurataps.net pass through Netlify and then Firebase Hosting, so the connecting
+// address is a proxy; Netlify's client header or the first X-Forwarded-For entry (req.ip,
+// since trust proxy is on) is the visitor. Callers can forge these headers, which is why
+// logins and password resets are also limited per email address.
 function clientIp(req) {
-  return String(req.headers['fastly-client-ip'] || req.ip || 'unknown').split(',')[0].trim()
+  return String(req.headers['x-nf-client-connection-ip'] || req.ip || 'unknown').split(',')[0].trim()
 }
 
 function bearerToken(req) {
@@ -149,7 +154,8 @@ app.post(
 
 app.post(
   '/api/member/register',
-  rateLimit('register', { max: 10, windowMs: HOUR }),
+  // High enough for a whole team to sign up from one office network.
+  rateLimit('register', { max: 30, windowMs: HOUR }),
   route(async (req, res) => {
     const email = validateEmail(req.body.email)
     const password = validatePassword(req.body.password)

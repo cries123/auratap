@@ -4,4 +4,4 @@ Disallow: /admin
 Disallow: /member
 Disallow: /reset-password
 
-Sitemap: https://auratap-ee8a0.web.app/sitemap.xml
+Sitemap: https://aurataps.net/sitemap.xml

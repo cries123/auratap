@@ -1,47 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://auratap-ee8a0.web.app/</loc>
+    <loc>https://aurataps.net/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://auratap-ee8a0.web.app/how-it-works</loc>
+    <loc>https://aurataps.net/how-it-works</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://auratap-ee8a0.web.app/pricing</loc>
+    <loc>https://aurataps.net/pricing</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://auratap-ee8a0.web.app/testimonials</loc>
+    <loc>https://aurataps.net/testimonials</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://auratap-ee8a0.web.app/contact</loc>
+    <loc>https://aurataps.net/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://auratap-ee8a0.web.app/setup</loc>
+    <loc>https://aurataps.net/setup</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://auratap-ee8a0.web.app/warranty</loc>
+    <loc>https://aurataps.net/warranty</loc>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://auratap-ee8a0.web.app/privacy</loc>
+    <loc>https://aurataps.net/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://auratap-ee8a0.web.app/terms</loc>
+    <loc>https://aurataps.net/terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

@@ -1,6 +1,6 @@
 // Runtime settings. On Firebase these come from functions/.env (see .env.example).
 export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
-export const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://auratap-ee8a0.web.app').replace(/\/$/, '')
+export const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://aurataps.net').replace(/\/$/, '')
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || ''
 export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 export const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || ''

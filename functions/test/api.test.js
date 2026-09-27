@@ -35,7 +35,7 @@ async function register(name, overrides = {}) {
   fakeIp += 1
   return call('POST', '/api/member/register', {
     body: { email: `${name}-${run}@test.dev`, password: 'correct horse battery', displayName: 'Test Person', slug: `${name}-${run}`, ...overrides },
-    headers: { 'Fastly-Client-IP': `198.51.100.${fakeIp}` },
+    headers: { 'X-Forwarded-For': `198.51.100.${fakeIp}` },
   })
 }
 
@@ -201,15 +201,23 @@ test('password reset replaces the password and signs out old sessions', async ()
   assert.equal((await call('POST', '/api/member/login', { body: { email, password: 'a brand new password' } })).status, 200)
 })
 
-test('sign-ups from one address are rate limited', async () => {
-  let last
-  for (let i = 0; i < 11; i++) {
-    last = await call('POST', '/api/member/register', {
+// aurataps.net traffic arrives through Netlify's proxy, which names the visitor in its own header.
+test('sign-ups from one address are rate limited, including through Netlify', async () => {
+  const signUp = (i, headers) =>
+    call('POST', '/api/member/register', {
       body: { email: `spam${i}-${run}@test.dev`, password: 'correct horse battery', displayName: 'Spam', slug: `spam${i}-${run}` },
-      headers: { 'Fastly-Client-IP': '203.0.113.7' },
+      headers,
     })
+
+  const statuses = []
+  for (let i = 0; i < 31; i++) {
+    statuses.push((await signUp(i, { 'X-Nf-Client-Connection-Ip': '203.0.113.7', 'X-Forwarded-For': '10.0.0.1' })).status)
   }
-  assert.equal(last.status, 429)
+  assert.equal(statuses.filter((status) => status === 200).length, 30)
+  assert.equal(statuses.at(-1), 429)
+
+  // A different visitor behind the same proxy is not blocked.
+  assert.equal((await signUp(99, { 'X-Nf-Client-Connection-Ip': '203.0.113.8', 'X-Forwarded-For': '10.0.0.1' })).status, 200)
 })
 
 test('login attempts for one email are rate limited', async () => {
