@@ -4,18 +4,18 @@ Professional marketing website for Aura Tap, built with React and Vite.
 
 ## Brand Direction
 
-- Black and light-grey visual system
-- Smooth transitions and animated section reveals
+- Light, monochrome visual system (white and warm grey, black accents)
+- Public tap profiles (`/:slug`) keep a dark look
 - Mobile-first responsive layout for sales and service audiences
 
-## Included Sections
+## Project Structure
 
-- Hero and value proposition
-- Benefits overview
-- Product highlights for NFC cards and wristbands
-- ROI breakdown section
-- Pushback rebuttals for sales conversations
-- Final call-to-action for local demos
+- `src/App.jsx`: routes and page shell
+- `src/pages/`: one file per page (home, pricing, contact, admin, member portal, tap profiles)
+- `src/components/`: header, footer, chat widget, and shared UI pieces
+- `src/data/content.js`: testimonials, steps, pricing plans, and nav links
+- `src/config.js`: environment-driven settings (contact details, API bases)
+- `public/images/`: compressed WebP product photos
 
 ## Development
 
