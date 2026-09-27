@@ -44,7 +44,11 @@ export async function memberApi(path, { method = 'GET', body, auth = false } = {
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new ApiError(data.error || 'Something went wrong. Please try again.', response.status)
+    // A 5xx without our JSON error body means the API itself is down or unreachable.
+    const fallback = response.status >= 500
+      ? "We couldn't reach Aura Tap right now. Please try again in a moment."
+      : 'Something went wrong. Please try again.'
+    throw new ApiError(data.error || fallback, response.status)
   }
   return data
 }

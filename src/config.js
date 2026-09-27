@@ -1,7 +1,5 @@
 export const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'sales@auratap.com'
 
-export const PHONE_NUMBER = import.meta.env.VITE_PHONE_NUMBER || '8059033231'
-
 export const BOOKING_URL = import.meta.env.VITE_BOOKING_URL || '/contact'
 
 export const BUSINESS_ADDRESS = import.meta.env.VITE_BUSINESS_ADDRESS || 'Nationwide'
@@ -43,14 +41,5 @@ export const RESERVED_PATHS = new Set([
   'reset-password',
   'setup',
 ])
-
-function formatPhone(value) {
-  const digits = String(value).replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '')
-  return digits.length === 10
-    ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
-    : value
-}
-
-export const PHONE_DISPLAY = formatPhone(PHONE_NUMBER)
 
 export const IS_EXTERNAL_BOOKING = /^https?:\/\//.test(BOOKING_URL)

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { CONTACT_EMAIL, PHONE_NUMBER, CHAT_API_BASE, PHONE_DISPLAY } from '../config'
+import { CONTACT_EMAIL, CHAT_API_BASE } from '../config'
 import { trackEvent } from '../lib/analytics'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { TEAM_SIZE_OPTIONS, PRICING_PLANS } from '../data/content'
@@ -140,8 +140,7 @@ export function ContactPage() {
             <li>We schedule setup and activation support.</li>
           </ol>
           <div className="contact-side-direct">
-            <p>Prefer to talk it through?</p>
-            <a href={`tel:${PHONE_NUMBER}`}>{PHONE_DISPLAY}</a>
+            <p>Prefer email?</p>
             <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
           </div>
         </aside>

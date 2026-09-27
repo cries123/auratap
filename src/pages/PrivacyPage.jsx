@@ -1,4 +1,4 @@
-import { CONTACT_EMAIL, PHONE_NUMBER } from '../config'
+import { CONTACT_EMAIL } from '../config'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { SubpageHero } from '../components/SubpageHero'
 
@@ -100,8 +100,7 @@ export function PrivacyPage() {
         <h2 id="privacy-contact">10. Contact</h2>
         <p>
           Questions about this policy? Reach us at{' '}
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> or call{' '}
-          <a href={`tel:${PHONE_NUMBER}`}>{PHONE_NUMBER}</a>.
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
         </p>
         </section>
       </section>

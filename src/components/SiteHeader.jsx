@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { PHONE_NUMBER, PHONE_DISPLAY } from '../config'
 import { NAV_LINKS } from '../data/content'
 import { BookDemoLink } from './BookDemoLink'
 import { BrandMark } from './BrandMark'
@@ -44,9 +43,6 @@ export function SiteHeader() {
         </nav>
 
         <div className="site-header-actions">
-          <a className="header-phone" href={`tel:${PHONE_NUMBER}`}>
-            {PHONE_DISPLAY}
-          </a>
           <NavLink to="/member" className="header-login">
             Log in
           </NavLink>
@@ -81,9 +77,6 @@ export function SiteHeader() {
             <BookDemoLink source="mobile_nav" className="btn btn-primary">
               Book a Demo
             </BookDemoLink>
-            <a className="btn btn-secondary" href={`tel:${PHONE_NUMBER}`}>
-              Call {PHONE_DISPLAY}
-            </a>
           </div>
         </div>
       </nav>

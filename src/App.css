@@ -234,7 +234,6 @@
   flex: none;
 }
 
-.header-phone,
 .header-login {
   color: var(--text);
   font-size: 0.9rem;
@@ -242,7 +241,6 @@
   text-decoration: none;
 }
 
-.header-phone:hover,
 .header-login:hover,
 .header-login.active {
   color: var(--ink);
@@ -2522,13 +2520,9 @@
   color: var(--muted);
 }
 
-/* ─── Responsive─────────────────────────────────────────── */
+/* ─── Responsive ─────────────────────────────────────────── */
 
 @media (max-width: 1100px) {
-  .header-phone {
-    display: none;
-  }
-
   .site-header-inner {
     gap: 1.25rem;
   }

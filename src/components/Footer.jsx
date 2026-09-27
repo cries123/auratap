@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { CONTACT_EMAIL, PHONE_NUMBER, BUSINESS_ADDRESS, PHONE_DISPLAY } from '../config'
+import { CONTACT_EMAIL, BUSINESS_ADDRESS } from '../config'
 import { BrandMark } from './BrandMark'
 
 export function Footer() {
@@ -37,7 +37,6 @@ export function Footer() {
           <BrandMark />
           <p>Premium NFC cards and wristbands for faster, cleaner networking.</p>
           <p className="site-footer-contact">
-            <a href={`tel:${PHONE_NUMBER}`}>{PHONE_DISPLAY}</a>
             <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
             <span>Service area: {BUSINESS_ADDRESS}</span>
           </p>

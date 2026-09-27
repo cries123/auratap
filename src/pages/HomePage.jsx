@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { PHONE_NUMBER, PHONE_DISPLAY } from '../config'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { HOW_IT_WORKS_STEPS, TESTIMONIALS } from '../data/content'
 import { BookDemoLink } from '../components/BookDemoLink'
@@ -308,8 +307,7 @@ export function HomePage() {
             <h2>Frequently asked questions.</h2>
             <p className="muted">
               Can&apos;t find what you&apos;re looking for?{' '}
-              <Link className="text-link" to="/contact">Contact our team</Link> or call{' '}
-              <a className="text-link" href={`tel:${PHONE_NUMBER}`}>{PHONE_DISPLAY}</a>.
+              <Link className="text-link" to="/contact">Contact our team</Link>.
             </p>
           </div>
           <div className="faq-list">
@@ -336,9 +334,9 @@ export function HomePage() {
                 <BookDemoLink source="cta" className="btn btn-inverse btn-lg">
                   Book a Demo
                 </BookDemoLink>
-                <a className="btn btn-outline-inverse btn-lg" href={`tel:${PHONE_NUMBER}`}>
-                  Call {PHONE_DISPLAY}
-                </a>
+                <Link className="btn btn-outline-inverse btn-lg" to="/pricing">
+                  View Pricing
+                </Link>
               </div>
             </div>
             <img

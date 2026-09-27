@@ -1,4 +1,4 @@
-import { CONTACT_EMAIL, PHONE_NUMBER } from '../config'
+import { CONTACT_EMAIL } from '../config'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { SubpageHero } from '../components/SubpageHero'
 
@@ -124,8 +124,7 @@ export function TermsPage() {
         <h2 id="terms-contact">14. Contact</h2>
         <p>
           Questions? Reach us at{' '}
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> or call{' '}
-          <a href={`tel:${PHONE_NUMBER}`}>{PHONE_NUMBER}</a>.
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
         </p>
         </section>
       </section>
