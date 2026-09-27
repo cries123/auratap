@@ -1,3 +1,5 @@
+import { ADMIN_EMAIL, FRONTEND_URL } from './config.js'
+import { escapeHtml } from './validation.js'
 
 const RESEND_API_URL = 'https://api.resend.com/emails'
 
@@ -5,8 +7,8 @@ async function sendEmail({ to, subject, html }) {
   const resendApiKey = process.env.RESEND_API_KEY || ''
   const emailFrom = process.env.EMAIL_FROM || 'onboarding@resend.dev'
 
-  if (!resendApiKey) {
-    console.warn('RESEND_API_KEY is not configured. Skipping email send.')
+  if (!resendApiKey || !to) {
+    console.warn(`Email not sent (${!resendApiKey ? 'RESEND_API_KEY missing' : 'no recipient'}): ${subject}`)
     return false
   }
 
@@ -16,68 +18,76 @@ async function sendEmail({ to, subject, html }) {
       Authorization: `Bearer ${resendApiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      from: emailFrom,
-      to,
-      subject,
-      html,
-    }),
+    body: JSON.stringify({ from: emailFrom, to, subject, html }),
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Resend API error (${response.status}): ${errorText}`)
+    throw new Error(`Resend API error (${response.status}): ${await response.text()}`)
   }
 
   return true
 }
 
+const paragraphs = (text) => escapeHtml(text).replace(/\n/g, '<br>')
+
 export async function sendNewMessageNotification(visitorName, visitorEmail, visitorMessage, messageId) {
   try {
-    const adminBaseUrl = process.env.ADMIN_URL || process.env.FRONTEND_URL || 'http://localhost:5173'
-    const normalizedAdminBaseUrl = adminBaseUrl.replace(/\/$/, '')
-    const adminLink = `${normalizedAdminBaseUrl}/admin?messageId=${messageId}`
+    const adminBaseUrl = (process.env.ADMIN_URL || FRONTEND_URL).replace(/\/$/, '')
+    const adminLink = `${adminBaseUrl}/admin?messageId=${encodeURIComponent(messageId)}`
 
-    const sent = await sendEmail({
-      to: process.env.ADMIN_EMAIL || 'your_email@example.com',
-      subject: `🆕 New Chat Message #${messageId} from ${visitorName}`,
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `New message from ${visitorName.replace(/[\r\n]+/g, ' ').slice(0, 80)}`,
       html: `
-        <h2>New Live Chat Message</h2>
-        <p><strong>Ticket:</strong> #${messageId}</p>
-        <p><strong>From:</strong> ${visitorName} (${visitorEmail})</p>
+        <h2>New website message</h2>
+        <p><strong>From:</strong> ${escapeHtml(visitorName)} (${escapeHtml(visitorEmail)})</p>
         <p><strong>Message:</strong></p>
-        <p>${visitorMessage.replace(/\n/g, '<br>')}</p>
+        <p>${paragraphs(visitorMessage)}</p>
         <hr>
-        <p><em>Respond from the admin panel to keep thread history accurate.</em></p>
-        <p><a href="${adminLink}">View & Reply in Admin Panel</a></p>
+        <p><a href="${escapeHtml(adminLink)}">View &amp; reply in the admin panel</a></p>
       `,
     })
-    if (sent) {
-      console.log(`Email notification sent for message from ${visitorName}`)
-    }
   } catch (error) {
-    console.error('Error sending email notification:', error)
-    // Don't throw - chat should work even if email fails
+    // The message is already saved; a failed notification shouldn't fail the request.
+    console.error('Error sending new message notification:', error)
   }
 }
 
 export async function sendAdminResponseEmail(visitorEmail, visitorName, adminResponse) {
   try {
-    const sent = await sendEmail({
+    await sendEmail({
       to: visitorEmail,
-      subject: 'Response from Aura Tap Support',
+      subject: 'A reply from Aura Tap',
       html: `
-        <h2>Hi ${visitorName},</h2>
-        <p>Thanks for reaching out! Here's our response:</p>
-        <p>${adminResponse.replace(/\n/g, '<br>')}</p>
+        <p>Hi ${escapeHtml(visitorName)},</p>
+        <p>Thanks for reaching out! Here's our reply:</p>
+        <p>${paragraphs(adminResponse)}</p>
         <hr>
-        <p>Best regards,<br>Aura Tap Team</p>
+        <p>Best regards,<br>The Aura Tap team</p>
       `,
     })
-    if (sent) {
-      console.log(`Response email sent to ${visitorEmail}`)
-    }
   } catch (error) {
-    console.error('Error sending response email:', error)
+    console.error('Error sending reply email:', error)
+  }
+}
+
+// Returns false when email isn't configured, so the caller can log it for support.
+export async function sendPasswordResetEmail(email, displayName, token) {
+  const link = `${FRONTEND_URL}/reset-password?token=${encodeURIComponent(token)}`
+  try {
+    return await sendEmail({
+      to: email,
+      subject: 'Reset your Aura Tap password',
+      html: `
+        <p>Hi ${escapeHtml(displayName)},</p>
+        <p>We received a request to reset the password for your Aura Tap account.</p>
+        <p><a href="${escapeHtml(link)}">Choose a new password</a></p>
+        <p>This link expires in 1 hour. If you didn't ask for this, you can ignore this email.</p>
+        <p>The Aura Tap team</p>
+      `,
+    })
+  } catch (error) {
+    console.error('Error sending password reset email:', error)
+    return false
   }
 }

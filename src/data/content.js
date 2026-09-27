@@ -1,6 +1,7 @@
+// Built-in pages shown when the API has no member with that link (e.g. before Jay creates a portal account).
 export const AURA_PROFILE_PAGES = {
   jay: {
-    name: 'Jay',
+    displayName: 'Jay',
     headline: 'Founder of Aura Taps',
     subheadline: 'Tap to connect.',
     avatarSrc: '/images/product-test.webp',
@@ -12,7 +13,7 @@ export const AURA_PROFILE_PAGES = {
     ],
   },
   placeholder: {
-    name: 'Your Name',
+    displayName: 'Your Name',
     headline: 'Aura Tap Profile',
     subheadline: 'Add your links and contact buttons here.',
     avatarSrc: '/auralogo.png',

@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { MEMBER_API_BASE, RESERVED_PATHS } from '../config'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { AURA_PROFILE_PAGES } from '../data/content'
+import { ProfileCard } from '../components/ProfileCard'
 
 export function AuraProfilePage() {
   const { profileSlug = '' } = useParams()
+  const navigate = useNavigate()
   const key = profileSlug.toLowerCase()
   const isReservedPath = RESERVED_PATHS.has(key)
   const [profile, setProfile] = useState(null)
   const [status, setStatus] = useState('loading')
+  const [attempt, setAttempt] = useState(0)
 
   usePageMeta(
-    profile ? profile.name : 'Profile',
-    profile ? `${profile.name}: ${profile.headline}` : undefined,
+    profile ? profile.displayName : 'Profile',
+    profile ? [profile.displayName, profile.headline].filter(Boolean).join(': ') : undefined,
   )
 
   useEffect(() => {
@@ -24,26 +27,25 @@ export function AuraProfilePage() {
     let isMounted = true
 
     async function loadProfile() {
+      let response
       try {
-        const response = await fetch(`${MEMBER_API_BASE}/api/public/profile/${encodeURIComponent(key)}`)
-        if (!isMounted) {
-          return
-        }
-
-        if (response.ok) {
-          const data = await response.json()
-          setProfile({
-            name: data.displayName,
-            headline: data.headline,
-            subheadline: data.subheadline,
-            avatarSrc: data.avatarSrc || '/auralogo.png',
-            links: Array.isArray(data.links) ? data.links : [],
-          })
-          setStatus('ready')
-          return
-        }
+        response = await fetch(`${MEMBER_API_BASE}/api/public/profile/${encodeURIComponent(key)}`)
       } catch (error) {
         console.error('Unable to load public profile:', error)
+      }
+      if (!isMounted) {
+        return
+      }
+
+      if (response?.ok) {
+        const data = await response.json()
+        // Old links keep working; show the member's current link in the address bar.
+        if (data.slug && data.slug !== key) {
+          navigate(`/${data.slug}`, { replace: true })
+        }
+        setProfile({ ...data, links: Array.isArray(data.links) ? data.links : [] })
+        setStatus('ready')
+        return
       }
 
       const fallback = AURA_PROFILE_PAGES[key]
@@ -51,7 +53,7 @@ export function AuraProfilePage() {
         setProfile(fallback)
         setStatus('ready')
       } else {
-        setStatus('not-found')
+        setStatus(response?.status === 404 ? 'not-found' : 'error')
       }
     }
 
@@ -60,13 +62,32 @@ export function AuraProfilePage() {
     return () => {
       isMounted = false
     }
-  }, [key, isReservedPath])
+  }, [key, isReservedPath, navigate, attempt])
 
   if (status === 'loading' && !isReservedPath) {
     return (
       <main className="profile-page-shell">
-        <section className="profile-page-card">
-          <p>Loading profile...</p>
+        <p className="profile-page-status" role="status">Loading…</p>
+      </main>
+    )
+  }
+
+  if (status === 'error' && !isReservedPath) {
+    return (
+      <main className="profile-page-shell">
+        <section className="profile-page-message">
+          <h1>We couldn&apos;t load this page</h1>
+          <p>Please check your connection and try again.</p>
+          <button
+            type="button"
+            className="profile-save-contact"
+            onClick={() => {
+              setStatus('loading')
+              setAttempt((current) => current + 1)
+            }}
+          >
+            Try again
+          </button>
         </section>
       </main>
     )
@@ -75,56 +96,25 @@ export function AuraProfilePage() {
   if (isReservedPath || !profile || status === 'not-found') {
     return (
       <main className="profile-page-shell">
-        <section className="profile-page-card">
+        <section className="profile-page-message">
           <h1>Profile not found</h1>
-          <p>This Aura Tap page is not active yet.</p>
+          <p>This Aura Tap page isn&apos;t active yet.</p>
           <Link to="/" className="profile-home-link">
-            Return to Aura Tap
+            Visit Aura Tap
           </Link>
         </section>
       </main>
     )
   }
 
+  // Built-in fallback pages have no server record, so they can't offer a contact card download.
+  const vcardHref = profile.slug
+    ? `${MEMBER_API_BASE}/api/public/profile/${encodeURIComponent(profile.slug)}/vcard`
+    : undefined
+
   return (
     <main className="profile-page-shell">
-      <section className="profile-page-content" aria-label={`${profile.name} profile links`}>
-        <img
-          src={profile.avatarSrc}
-          alt={`${profile.name} profile avatar`}
-          className="profile-avatar"
-        />
-        <h1 className="profile-name">{profile.name}</h1>
-        <p className="profile-headline">{profile.headline} <span aria-hidden="true">⚡</span></p>
-        <p className="profile-subheadline">{profile.subheadline}</p>
-
-        <div className="profile-link-list">
-          {profile.links.map((item) => {
-            const isExternal = item.href.startsWith('http')
-            return isExternal ? (
-              <a
-                key={item.label}
-                className="profile-link-button"
-                href={item.href}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {item.label}
-              </a>
-            ) : (
-              <Link key={item.label} className="profile-link-button" to={item.href}>
-                {item.label}
-              </Link>
-            )
-          })}
-        </div>
-
-        <p className="profile-powered-by">
-          <span aria-hidden="true">⚡</span>
-          {' '}
-          Powered by Aura Taps
-        </p>
-      </section>
+      <ProfileCard profile={profile} vcardHref={vcardHref} />
     </main>
   )
 }

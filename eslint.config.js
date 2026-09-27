@@ -27,16 +27,9 @@ export default defineConfig([
     },
   },
   {
-    files: ['server/**/*.js', 'functions/**/*.js'],
+    files: ['functions/**/*.js', 'vite.config.js'],
     languageOptions: {
       globals: globals.node,
-    },
-  },
-  {
-    // The Firebase entry point is CommonJS; its helper modules are still ES modules.
-    files: ['functions/index.js'],
-    languageOptions: {
-      sourceType: 'commonjs',
     },
   },
 ])

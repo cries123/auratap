@@ -16,6 +16,19 @@ export const ADMIN_TOKEN_KEY = 'auratap_admin_token'
 
 export const MEMBER_TOKEN_KEY = 'auratap_member_token'
 
+const CURRENT_ORIGIN = typeof window !== 'undefined' ? window.location.origin : ''
+const CONFIGURED_SITE_URL = (import.meta.env.VITE_PUBLIC_SITE_URL || '').replace(/\/$/, '')
+
+// The address customers' tap links are shown with. Placeholder values from .env.example
+// are ignored so a half-configured build never prints example.com links for customers.
+export const PUBLIC_SITE_URL = /^https?:\/\/(www\.)?(example\.com|your-domain\.com)$/i.test(CONFIGURED_SITE_URL) || !CONFIGURED_SITE_URL
+  ? CURRENT_ORIGIN
+  : CONFIGURED_SITE_URL
+
+export const PUBLIC_SITE_HOST = PUBLIC_SITE_URL.replace(/^https?:\/\//, '')
+
+// Top-level paths the site uses itself, so they can never be a member's tap link.
+// The server keeps a longer list (functions/config.js RESERVED_SLUGS) that includes these.
 export const RESERVED_PATHS = new Set([
   '',
   'how-it-works',
@@ -27,6 +40,8 @@ export const RESERVED_PATHS = new Set([
   'warranty',
   'admin',
   'member',
+  'reset-password',
+  'setup',
 ])
 
 function formatPhone(value) {

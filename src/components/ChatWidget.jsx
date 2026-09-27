@@ -86,7 +86,7 @@ export function ChatWidget() {
       const currentMessages = messagesRef.current
       const messageIds = [...new Set(
         currentMessages
-          .filter((msg) => msg.sender === 'user' && Number.isInteger(msg.id))
+          .filter((msg) => msg.sender === 'user' && msg.id != null)
           .map((msg) => msg.id)
       )]
 

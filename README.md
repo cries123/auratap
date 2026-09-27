@@ -27,22 +27,10 @@ npm run dev
 ## Environment Setup
 
 1. Copy `.env.example` to `.env` in the project root and fill your business values.
-2. Copy `server/.env.example` to `server/.env` and fill your SMTP and admin auth values.
+   Set `VITE_PUBLIC_SITE_URL` to your real domain (it falls back to `https://auratap-ee8a0.web.app`).
+2. Copy `functions/.env.example` to `functions/.env` for the API (admin password, email, Telegram).
 
-Required server values:
-
-- `ADMIN_PASSWORD`
-- `ADMIN_EMAIL`
-- `FRONTEND_URL` and/or `CORS_ORIGINS`
-
-Required frontend values:
-
-- `VITE_CONTACT_EMAIL`
-- `VITE_BOOKING_URL`
-- `VITE_CHAT_API_BASE`
-- `VITE_ADMIN_API_BASE`
-- `VITE_PUBLIC_SITE_URL`
-- `VITE_GA_MEASUREMENT_ID` (optional, for Google Analytics)
+The API, database, and deployment steps are documented in [functions/README.md](functions/README.md).
 
 ## Contact Form Behavior
 
@@ -61,17 +49,23 @@ via `scripts/generate-seo-files.mjs` and run on `predev` and `prebuild`.
 npm run build
 ```
 
-## Chat + Admin Backend
+## API (chat, contact form, admin, member portal)
 
-Run backend API in a separate terminal:
+The API is a Firebase Cloud Function backed by Firestore. To run it locally:
 
 ```bash
-cd server
+cd functions
 npm install
-npm run dev
+npm run serve
 ```
 
-Admin login now uses server-side authentication tokens. The frontend no longer stores a hardcoded admin password.
+`npm run dev` in the project root forwards `/api` requests to it. See
+[functions/README.md](functions/README.md) for setup, tests, and deployment.
+
+## Member Portal
+
+Customers create their tap page at `/member`, then program their card with the free NFC Tools
+app using the guide at `/setup` (also shown inside the portal with their own link).
 
 ## Lint
 

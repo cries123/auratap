@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
+import { PUBLIC_SITE_URL } from '../config'
 
 const DEFAULT_TITLE = 'Aura Tap | NFC Cards and Wristbands for Modern Networking'
 
@@ -16,7 +17,7 @@ export function usePageMeta(title, description = DEFAULT_DESCRIPTION) {
 
   useEffect(() => {
     const fullTitle = title ? `${title} | Aura Tap` : DEFAULT_TITLE
-    const url = `${window.location.origin}${pathname}`
+    const url = `${PUBLIC_SITE_URL}${pathname}`
 
     document.title = fullTitle
     setMetaContent('meta[name="description"]', description)
@@ -26,5 +27,7 @@ export function usePageMeta(title, description = DEFAULT_DESCRIPTION) {
     setMetaContent('meta[name="twitter:title"]', fullTitle)
     setMetaContent('meta[name="twitter:description"]', description)
     document.querySelector('link[rel="canonical"]')?.setAttribute('href', url)
+    setMetaContent('meta[property="og:image"]', `${PUBLIC_SITE_URL}/og-image.jpg`)
+    setMetaContent('meta[name="twitter:image"]', `${PUBLIC_SITE_URL}/og-image.jpg`)
   }, [title, description, pathname])
 }

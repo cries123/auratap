@@ -16,6 +16,7 @@ export function Footer() {
       title: 'Support',
       links: [
         { to: '/contact', label: 'Contact Us' },
+        { to: '/setup', label: 'Card Setup Guide' },
         { to: '/warranty', label: 'Warranty' },
         { to: '/member', label: 'Member Log In' },
       ],

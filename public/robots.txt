@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /member
+Disallow: /reset-password
 
-Sitemap: https://example.com/sitemap.xml
+Sitemap: https://auratap-ee8a0.web.app/sitemap.xml

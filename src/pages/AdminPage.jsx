@@ -176,6 +176,8 @@ function AdminPageContent({ onSessionExpired }) {
   }
 
   function handleLogout() {
+    // End the session on the server too; sign out locally even if that request fails.
+    fetch(`${ADMIN_API}/logout`, { method: 'POST', headers: getAdminAuthHeaders() }).catch(() => {})
     localStorage.removeItem(ADMIN_TOKEN_KEY)
     onSessionExpired()
   }
