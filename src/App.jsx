@@ -79,65 +79,129 @@ function trackEvent(eventName, payload = {}) {
   window.dataLayer.push({ event: eventName, ...payload })
 }
 
+function formatPhone(value) {
+  const digits = String(value).replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '')
+  return digits.length === 10
+    ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+    : value
+}
+
+const PHONE_DISPLAY = formatPhone(PHONE_NUMBER)
+const IS_EXTERNAL_BOOKING = /^https?:\/\//.test(BOOKING_URL)
+
+// Opens the booking page: a new tab for an external scheduler, in-app navigation otherwise.
+function BookDemoLink({ source, className, children }) {
+  const onClick = () => trackEvent('book_demo_click', { source })
+
+  return IS_EXTERNAL_BOOKING ? (
+    <a className={className} href={BOOKING_URL} target="_blank" rel="noreferrer" onClick={onClick}>
+      {children}
+    </a>
+  ) : (
+    <Link className={className} to={BOOKING_URL} onClick={onClick}>
+      {children}
+    </Link>
+  )
+}
+
+const NAV_LINKS = [
+  { to: '/how-it-works', label: 'How It Works' },
+  { to: '/pricing', label: 'Pricing' },
+  { to: '/testimonials', label: 'Reviews' },
+  { to: '/contact', label: 'Contact' },
+]
+
+function BrandMark() {
+  return (
+    <Link to="/" className="brand" aria-label="Aura Tap home">
+      <img src="/auralogo.png" alt="" className="brand-logo" />
+      <span className="brand-wordmark">AURA TAP</span>
+    </Link>
+  )
+}
+
 function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const close = () => setMenuOpen(false)
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return undefined
+    }
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [menuOpen])
 
   return (
-    <header className="top-nav panel">
-      <p className="brand" aria-label="Aura Tap">
-        <img src="/auralogo.png" alt="Aura Tap" className="brand-logo" />
-        <span className="brand-wordmark">AURA TAP</span>
-        <span className="sr-only">Aura Tap</span>
-      </p>
+    <header
+      className={`site-header${menuOpen ? ' is-open' : ''}`}
+      onClick={(event) => {
+        if (event.target.closest('a')) {
+          setMenuOpen(false)
+        }
+      }}
+    >
+      <div className="container site-header-inner">
+        <BrandMark />
 
-      {/* Desktop nav */}
-      <div className="top-nav-right top-nav-desktop">
-        <a className="top-phone" href={`tel:${PHONE_NUMBER}`}>
-          Prefer to talk? {PHONE_NUMBER}
-        </a>
-        <nav>
-          <NavLink to="/" end>Home</NavLink>
-          <NavLink to="/how-it-works">How It Works</NavLink>
-          <NavLink to="/testimonials">Testimonials</NavLink>
-          <NavLink to="/pricing">Pricing</NavLink>
-          <NavLink to="/warranty">Warranty</NavLink>
-          <NavLink to="/member">Member Portal</NavLink>
-          <NavLink to="/contact" onClick={() => trackEvent('contact_click', { source: 'top_nav' })}>
-            Contact Us
-          </NavLink>
+        <nav className="site-nav" aria-label="Main">
+          {NAV_LINKS.map((item) => (
+            <NavLink key={item.to} to={item.to}>
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
+
+        <div className="site-header-actions">
+          <a className="header-phone" href={`tel:${PHONE_NUMBER}`}>
+            {PHONE_DISPLAY}
+          </a>
+          <NavLink to="/member" className="header-login">
+            Log in
+          </NavLink>
+          <BookDemoLink source="top_nav" className="btn btn-primary btn-sm">
+            Book a Demo
+          </BookDemoLink>
+        </div>
+
+        <button
+          className="nav-toggle"
+          type="button"
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-nav"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
       </div>
 
-      {/* Mobile hamburger button */}
-      <button
-        className="nav-hamburger"
-        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((o) => !o)}
-      >
-        <span className={`ham-line${menuOpen ? ' open' : ''}`} />
-        <span className={`ham-line${menuOpen ? ' open' : ''}`} />
-        <span className={`ham-line${menuOpen ? ' open' : ''}`} />
-      </button>
-
-      {/* Mobile dropdown menu */}
-      {menuOpen && (
-        <nav className="mobile-nav-menu" onClick={close}>
-          <NavLink to="/" end>Home</NavLink>
-          <NavLink to="/how-it-works">How It Works</NavLink>
-          <NavLink to="/testimonials">Testimonials</NavLink>
-          <NavLink to="/pricing">Pricing</NavLink>
-          <NavLink to="/warranty">Warranty</NavLink>
-          <NavLink to="/member">Member Portal</NavLink>
-          <NavLink to="/contact" onClick={() => trackEvent('contact_click', { source: 'top_nav' })}>
-            Contact Us
-          </NavLink>
-          <a className="top-phone mobile-phone-link" href={`tel:${PHONE_NUMBER}`}>
-            📞 {PHONE_NUMBER}
-          </a>
-        </nav>
-      )}
+      <nav id="mobile-nav" className="mobile-nav" aria-label="Mobile" hidden={!menuOpen}>
+        <div className="container">
+          {NAV_LINKS.map((item) => (
+            <NavLink key={item.to} to={item.to}>
+              {item.label}
+            </NavLink>
+          ))}
+          <NavLink to="/member">Member log in</NavLink>
+          <div className="mobile-nav-actions">
+            <BookDemoLink source="mobile_nav" className="btn btn-primary">
+              Book a Demo
+            </BookDemoLink>
+            <a className="btn btn-secondary" href={`tel:${PHONE_NUMBER}`}>
+              Call {PHONE_DISPLAY}
+            </a>
+          </div>
+        </div>
+      </nav>
     </header>
   )
 }
@@ -264,79 +328,100 @@ function AuraProfilePage() {
   )
 }
 
+const HOW_IT_WORKS_STEPS = [
+  {
+    step: '01',
+    title: 'Tap or scan in seconds',
+    text: 'Someone taps your Aura device or scans the QR code and lands on your digital profile instantly.',
+  },
+  {
+    step: '02',
+    title: 'Show your best links',
+    text: 'Display contact info, social links, listings, booking links, portfolio pages, and more in one clean profile.',
+  },
+  {
+    step: '03',
+    title: 'Update without reprinting',
+    text: 'Change your details later without buying new cards every time your role, phone, or links change.',
+  },
+]
+
+const TESTIMONIALS = [
+  {
+    text: 'Aura Tap transformed how we network at events. Our team closes 40% more leads since we switched from paper cards.',
+    author: 'Sarah Martinez',
+    company: 'SLO Real Estate Group',
+    role: 'Sales Director',
+  },
+  {
+    text: 'Setup was a breeze. Within an hour, all 15 of our team members had their cards configured and ready to go.',
+    author: 'James Chen',
+    company: '805 Home Services',
+    role: 'Owner',
+  },
+  {
+    text: 'The wristbands are perfect for our field crews. Clients can save contact info instantly without fumbling for a card.',
+    author: 'Miguel Rodriguez',
+    company: 'Central Coast Plumbing',
+    role: 'Operations Manager',
+  },
+  {
+    text: 'As a solo photographer, the Aura Card made me look premium and helped me get more callbacks after every shoot.',
+    author: 'Alyssa Grant',
+    company: 'Independent Creative',
+    role: 'Freelance Photographer',
+  },
+  {
+    text: 'I am a solo realtor, and this made sharing my listings and contact details way faster at open houses.',
+    author: 'Derrick Sloan',
+    company: 'Independent Professional',
+    role: 'Solo Realtor',
+  },
+  {
+    text: 'As a one-person mobile detailer, the card helps clients save my info instantly and book repeat services easier.',
+    author: 'Nina Lopez',
+    company: 'Independent Professional',
+    role: 'Mobile Detail Specialist',
+  },
+]
+
+function TestimonialCard({ testimonial }) {
+  const initials = testimonial.author
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+
+  return (
+    <figure className="testimonial-card">
+      <blockquote>“{testimonial.text}”</blockquote>
+      <figcaption>
+        <span className="testimonial-avatar" aria-hidden="true">{initials}</span>
+        <span>
+          <strong>{testimonial.author}</strong>
+          <span>{testimonial.role}, {testimonial.company}</span>
+        </span>
+      </figcaption>
+    </figure>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" className="icon-check">
+      <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function CrossIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" className="icon-cross">
+      <path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function HomePage() {
-  const [showRoiPage, setShowRoiPage] = useState(false)
-  const [isHeroDemoActive, setIsHeroDemoActive] = useState(false)
-
-  const benefits = [
-    {
-      title: 'Zero Recurring Costs',
-      text: 'Stop re-ordering paper cards every time someone gets promoted. Update profiles in seconds, anytime.',
-    },
-    {
-      title: 'Instant Lead Capture',
-      text: 'Clients can save you or your team directly to their phone contacts, not lose a card in a stack later.',
-    },
-    {
-      title: 'Brand Authority',
-      text: 'A matte black Aura Card or custom NFC wristband signals modern, tech-forward confidence.',
-    },
-  ]
-
-  const rebuttals = [
-    {
-      q: 'We already have paper cards.',
-      a: 'Most teams do, until they realize they spend $50+ per employee every time details change. Aura Tap is a one-time $20 investment per person.',
-    },
-    {
-      q: 'Is it hard to set up?',
-      a: 'No. It takes around 60 seconds to connect each card. Team bundles include onboarding support so everyone is ready immediately.',
-    },
-    {
-      q: 'Why would we want wristbands?',
-      a: 'Wristbands are ideal for field teams and events. They are hands-free and built for quick networking while moving.',
-    },
-  ]
-
-  const testimonials = [
-    {
-      text: 'Aura Tap transformed how we network at events. Our team closes 40% more leads since we switched from paper cards.',
-      author: 'Sarah Martinez',
-      company: 'SLO Real Estate Group',
-      role: 'Sales Director',
-    },
-    {
-      text: 'Setup was a breeze. Within an hour, all 15 of our team members had their cards configured and ready to go.',
-      author: 'James Chen',
-      company: '805 Home Services',
-      role: 'Owner',
-    },
-    {
-      text: 'The wristbands are perfect for our field crews. Clients can save contact info instantly without fumbling for a card.',
-      author: 'Miguel Rodriguez',
-      company: 'Central Coast Plumbing',
-      role: 'Operations Manager',
-    },
-    {
-      text: 'As a solo photographer, the Aura Card made me look premium and helped me get more callbacks after every shoot.',
-      author: 'Alyssa Grant',
-      company: 'Independent Creative',
-      role: 'Freelance Photographer',
-    },
-    {
-      text: 'I am a solo realtor, and this made sharing my listings and contact details way faster at open houses.',
-      author: 'Derrick Sloan',
-      company: 'Independent Professional',
-      role: 'Solo Realtor',
-    },
-    {
-      text: 'As a one-person mobile detailer, the card helps clients save my info instantly and book repeat services easier.',
-      author: 'Nina Lopez',
-      company: 'Independent Professional',
-      role: 'Mobile Detail Specialist',
-    },
-  ]
-
   const clientLogos = [
     'Central Coast Plumbing',
     'SLO Real Estate Group',
@@ -344,29 +429,52 @@ function HomePage() {
     '805 Home Services',
   ]
 
-  const trustBadges = [
-    '12-Month Warranty',
-    'Setup Included',
-    'No Monthly Fees',
-    'Nationwide Support',
+  const products = [
+    {
+      name: 'Aura Card',
+      price: '$20',
+      image: '/images/product-cards.webp',
+      alt: 'Matte black Aura NFC card on a wooden desk',
+      audience: 'For realtors, photographers, consultants, and sales reps',
+      points: ['Premium matte-black finish', 'Instant contact sharing', 'Update details without reprinting'],
+    },
+    {
+      name: 'Aura Wristband',
+      price: '$25',
+      image: '/images/product-wristband.webp',
+      alt: 'Black silicone Aura NFC wristband on a wooden desk',
+      audience: 'For events, crews, field teams, and trade shows',
+      points: ['Comfortable to wear all day', 'Hands-free sharing on the move', 'Built for repeat taps'],
+    },
   ]
 
-  const howItWorks = [
+  const benefits = [
     {
-      step: '01',
-      title: 'Tap or scan in seconds',
-      text: 'Someone taps your Aura device or scans the QR code and lands on your digital profile instantly.',
+      title: 'Zero recurring costs',
+      text: 'Stop re-ordering paper cards every time someone gets promoted. Update profiles in seconds, anytime.',
     },
     {
-      step: '02',
-      title: 'Show your best links',
-      text: 'Display contact info, social links, listings, booking links, portfolio pages, and more in one clean profile.',
+      title: 'Instant lead capture',
+      text: 'Clients save you or your team directly to their phone contacts instead of losing a card in a stack.',
     },
     {
-      step: '03',
-      title: 'Update without reprinting',
-      text: 'Change your details later without buying new cards every time your role, phone, or links change.',
+      title: 'Brand authority',
+      text: 'A matte black Aura Card or custom NFC wristband signals a modern, tech-forward business.',
     },
+  ]
+
+  const comparison = [
+    'Saves straight to phone contacts',
+    'Update details without reprinting',
+    'Share socials, booking, listings, and portfolio',
+    'One-time purchase, no reorders',
+  ]
+
+  const stats = [
+    { value: '15,000+', label: 'Products sold' },
+    { value: '180+', label: 'Clients served' },
+    { value: '34%', label: 'Higher follow-up rate than paper cards' },
+    { value: '2.4x', label: 'Faster contact exchange at events' },
   ]
 
   const faqs = [
@@ -375,347 +483,293 @@ function HomePage() {
       a: 'Yes. Most modern smartphones support NFC tap or QR scan, so people can open your profile without downloading an app.',
     },
     {
+      q: 'Does the other person need an app?',
+      a: 'No. The tap opens your profile page directly in their browser, and they can save your contact with one button.',
+    },
+    {
       q: 'Can I update my info later?',
       a: 'Yes. Your profile can be updated after setup, so your card or wristband stays useful even if your info changes.',
     },
     {
-      q: 'Do I need an app to use Aura Tap?',
-      a: 'No app is required for the person receiving your details. The tap opens a profile page directly in their browser.',
+      q: 'How long does setup take?',
+      a: 'About 60 seconds per card. Team bundles include onboarding support so everyone is ready on day one.',
     },
     {
-      q: 'How long does setup take?',
-      a: 'Most individual setups take about a minute. Team bundles include installation support so rollout is fast and consistent.',
+      q: 'We already have paper cards. Why switch?',
+      a: 'Most teams spend $50+ per employee every time details change. Aura Tap is a one-time $20 investment per person.',
+    },
+    {
+      q: 'When should we choose wristbands?',
+      a: 'Wristbands are ideal for field teams and events. They are hands-free and built for quick networking while moving.',
     },
     {
       q: 'What happens if my card stops working?',
-      a: 'Manufacturing faults are covered under the 12-month warranty. Lost or stolen products are not covered.',
+      a: 'Manufacturing faults are covered under our 12-month warranty and replaced at no charge. Loss, theft, and physical damage are not covered.',
     },
   ]
 
   return (
     <>
-      <header className="hero hero-shell">
-        <div className="hero-copy">
-          <p className="eyebrow">Aura Tap | NFC Cards + Wristbands</p>
-          <p className="local-badge">Serving Clients Nationwide</p>
-          <h1>Deliver a professional first impression.</h1>
-          <p className="lead">
-            Premium NFC cards and wristbands that help you or your team share
-            contact info, booking links, portfolios, and socials with one tap.
-            No stacks. No waste. No reprints.
-          </p>
-          <div className="hero-actions">
-            <a
-              className="btn btn-primary"
-              href={BOOKING_URL}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => trackEvent('book_demo_click', { source: 'hero' })}
-            >
-              Book a 5-Min Demo
-            </a>
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={() => {
-                trackEvent('roi_open', { source: 'hero' })
-                setShowRoiPage(true)
-              }}
-            >
-              See ROI Math
-            </button>
-          </div>
-          <div className="hero-rating-strip">
-            <span>Trusted by local teams</span>
-            <strong>15,000+ products sold</strong>
-            <span>180+ clients served</span>
-          </div>
-        </div>
-
-        <div className="hero-visual">
-          <div
-            className={`hero-tap-demo${isHeroDemoActive ? ' is-active' : ''}`}
-            onMouseEnter={() => setIsHeroDemoActive(true)}
-            onMouseLeave={() => setIsHeroDemoActive(false)}
-            onClick={() => setIsHeroDemoActive((current) => !current)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                setIsHeroDemoActive((current) => !current)
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            aria-label="Interactive tap demo"
-          >
-            <p className="hero-proof-label">Live Tap Preview</p>
-            <div className="hero-demo-shell">
-              <div className="hero-phone" role="img" aria-label="Phone preview of Aura Tap profile">
-                <div className="hero-phone-notch" />
-                <div className="hero-phone-screen">
-                  <div className="hero-screen-placeholder" aria-hidden="true">
-                    <span className="hero-placeholder-avatar" />
-                    <span className="hero-placeholder-line hero-placeholder-line-wide" />
-                    <span className="hero-placeholder-line" />
-                    <span className="hero-placeholder-pill" />
-                    <span className="hero-placeholder-pill" />
-                    <span className="hero-placeholder-pill" />
-                  </div>
-                  <img
-                    src="/jay-profile-preview.png"
-                    alt="Profile page shown after tapping Aura card"
-                    className="hero-phone-screen-image"
-                  />
-                </div>
-              </div>
-
-              <div className="hero-nfc-card" aria-hidden="true">
-                <span className="hero-nfc-card-label">AURA</span>
-              </div>
-            </div>
-
-            <p className="hero-demo-hint">Hover over this area to tap ↑</p>
-          </div>
-        </div>
-      </header>
-
-      <section className="panel trust-badges-row" aria-label="Trust badges">
-        {trustBadges.map((badge) => (
-          <article key={badge} className="trust-badge-card">
-            <span className="trust-badge-dot" />
-            <p>{badge}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="benefits">
-        {benefits.map((benefit, index) => (
-          <article className="panel benefit" key={benefit.title}>
-            <p className="index">0{index + 1}</p>
-            <h3>{benefit.title}</h3>
-            <p>{benefit.text}</p>
-          </article>
-        ))}
-      </section>
-
-
-
-      <section className="products panel">
-        <h2>Products Designed for Professional Outreach</h2>
-        <div className="product-grid">
-          <article className="product-card-article">
-            <div className="product-img-wrap">
-              <img
-                src="/product-cards.png"
-                alt="Aura NFC Card — matte black card with AURA branding"
-                className="product-img product-img-card"
-              />
-            </div>
-            <h3>Aura Card</h3>
-            <p className="product-kicker">Best for realtors, photographers, consultants, sales reps</p>
-            <p>
-              Minimal matte-black NFC card for executives, sales reps, and
-              consultants who want premium presentation.
+      <section className="home-hero">
+        <div className="container home-hero-grid">
+          <div className="home-hero-copy">
+            <p className="eyebrow">NFC business cards &amp; wristbands</p>
+            <h1>Make a professional first impression with one tap.</h1>
+            <p className="lead">
+              Premium NFC cards and wristbands that let you and your team share
+              contact info, booking links, portfolios, and socials instantly.
+              No app, no reprints, no monthly fees.
             </p>
-            <ul className="product-points">
-              <li>Premium matte-black finish</li>
-              <li>Instant contact sharing</li>
-              <li>Update details without reprinting</li>
-            </ul>
-          </article>
-          <article className="product-wristband-article">
-            <div className="product-img-wrap product-img-wrap--light">
-              <img
-                src="/product-wristband.png"
-                alt="Aura NFC Wristband — black silicone wristband with AURA branding"
-                className="product-img product-img-wristband"
-              />
+            <div className="button-row">
+              <BookDemoLink source="hero" className="btn btn-primary btn-lg">
+                Book a 5-Minute Demo
+              </BookDemoLink>
+              <Link className="btn btn-secondary btn-lg" to="/pricing">
+                View Pricing
+              </Link>
             </div>
-            <h3>Aura Wristband</h3>
-            <p className="product-kicker">Best for events, crews, field teams, trade shows</p>
-            <p>
-              Hands-free NFC sharing for events, field teams, and trade show
-              environments where speed matters.
-            </p>
-            <ul className="product-points">
-              <li>Easy to wear all day</li>
-              <li>Ideal for fast-paced environments</li>
-              <li>Built for repeat taps and demos</li>
+            <ul className="hero-assurances">
+              <li><CheckIcon /> 12-month warranty</li>
+              <li><CheckIcon /> Setup included</li>
+              <li><CheckIcon /> Ships nationwide</li>
             </ul>
-          </article>
+          </div>
+
+          <div className="home-hero-media">
+            <img
+              src="/images/product-action.webp"
+              alt="Aura NFC wristband worn on a wrist next to a matte black Aura card"
+              width="1800"
+              height="824"
+              fetchPriority="high"
+            />
+            <div className="hero-stat-badge">
+              <strong>15,000+</strong>
+              <span>products sold to 180+ clients</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="panel comparison-section">
-        <div className="section-intro">
-          <p className="eyebrow">Before and After</p>
-          <h2>A Clear Advantage Over Paper Cards</h2>
-        </div>
-        <div className="comparison-grid">
-          <article className="comparison-card comparison-card-before">
-            <p className="comparison-label">Paper Card</p>
-            <ul>
-              <li>Gets lost in wallets or stacks</li>
-              <li>Needs reprints when info changes</li>
-              <li>Only shows one phone number and one email</li>
-              <li>Feels forgettable after the meeting ends</li>
-            </ul>
-          </article>
-          <article className="comparison-card comparison-card-after">
-            <p className="comparison-label">Aura Tap</p>
-            <ul>
-              <li>Instant save-to-phone experience</li>
-              <li>Update links later without replacing hardware</li>
-              <li>Show socials, listings, calendar, and portfolio together</li>
-              <li>Feels premium, modern, and memorable</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <section className="panel trust-grid">
-        <article>
-          <h2>Trusted by Organizations Nationwide</h2>
-          <div className="logo-cloud">
+      <section className="logo-strip" aria-label="Clients">
+        <div className="container logo-strip-inner">
+          <p>Trusted by teams at</p>
+          <ul>
             {clientLogos.map((logo) => (
-              <span key={logo}>{logo}</span>
+              <li key={logo}>{logo}</li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="container split split-media-left">
+          <figure className="split-media">
+            <img
+              src="/images/tap-demo-showcase.webp"
+              alt="Aura card next to a phone showing a digital contact profile"
+              width="1100"
+              height="1520"
+              loading="lazy"
+            />
+          </figure>
+          <div>
+            <p className="eyebrow">How it works</p>
+            <h2>From tap to saved contact in seconds.</h2>
+            <ol className="step-list">
+              {HOW_IT_WORKS_STEPS.map((item) => (
+                <li key={item.step}>
+                  <span className="step-number">{item.step}</span>
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.text}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <Link className="text-link" to="/how-it-works">
+              See the full walkthrough <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="section section-alt">
+        <div className="container">
+          <div className="section-heading">
+            <p className="eyebrow">Products</p>
+            <h2>Choose the right device for how you network.</h2>
+            <p>Both work with every modern iPhone and Android phone, with no app required.</p>
+          </div>
+          <div className="product-grid">
+            {products.map((product) => (
+              <article className="product-card" key={product.name}>
+                <img src={product.image} alt={product.alt} width="1400" height="600" loading="lazy" />
+                <div className="product-card-body">
+                  <div className="product-card-title">
+                    <h3>{product.name}</h3>
+                    <p className="product-price">
+                      <span>from</span> {product.price}
+                    </p>
+                  </div>
+                  <p className="product-audience">{product.audience}</p>
+                  <ul className="check-list">
+                    {product.points.map((point) => (
+                      <li key={point}><CheckIcon /> {point}</li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
             ))}
           </div>
-          <p className="note">Trusted by teams and professionals nationwide.</p>
-        </article>
-        <article>
-          <h2>Performance Metrics</h2>
-          <ul className="metrics">
-            <li>
-              <strong>34%</strong> higher follow-up rate after switching from paper cards.
-            </li>
-            <li>
-              <strong>2.4x</strong> faster contact exchange at events.
-            </li>
-            <li>
-              <strong>600+</strong> annual paper-card reorders eliminated for one 30-person team.
-            </li>
-          </ul>
-        </article>
-      </section>
-
-      <section className="panel objections">
-        <h2>Common Questions and Answers</h2>
-        {rebuttals.map((item) => (
-          <article key={item.q}>
-            <h3>{item.q}</h3>
-            <p>{item.a}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="panel faq-section">
-        <div className="section-intro">
-          <p className="eyebrow">Frequently Asked Questions</p>
-          <h2>Questions Decision-Makers Ask Before Purchase</h2>
+          <p className="section-footnote">
+            Custom logo branding is available for $5 per unit, and team bundles start at $225.{' '}
+            <Link className="text-link" to="/pricing">
+              Compare all pricing <span aria-hidden="true">→</span>
+            </Link>
+          </p>
         </div>
-        <div className="faq-list">
-          {faqs.map((item) => (
-            <details key={item.q} className="faq-item">
-              <summary>{item.q}</summary>
-              <p>{item.a}</p>
-            </details>
+      </section>
+
+      <section className="section">
+        <div className="container split">
+          <div>
+            <p className="eyebrow">Why Aura Tap</p>
+            <h2>A clear upgrade over paper business cards.</h2>
+            <div className="benefit-list">
+              {benefits.map((benefit) => (
+                <div key={benefit.title}>
+                  <h3>{benefit.title}</h3>
+                  <p>{benefit.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="comparison">
+            <table className="comparison-table">
+              <thead>
+                <tr>
+                  <th scope="col"><span className="sr-only">Feature</span></th>
+                  <th scope="col">Paper card</th>
+                  <th scope="col">Aura Tap</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparison.map((row) => (
+                  <tr key={row}>
+                    <th scope="row">{row}</th>
+                    <td><CrossIcon /><span className="sr-only">No</span></td>
+                    <td><CheckIcon /><span className="sr-only">Yes</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="roi-note">
+              <p className="roi-note-label">Example: a 10-person team</p>
+              <div className="roi-note-figures">
+                <div>
+                  <span>Paper cards</span>
+                  <strong>$800/yr</strong>
+                  <small>$40 × 10 people × 2 reorders</small>
+                </div>
+                <div>
+                  <span>Aura Tap</span>
+                  <strong>$200 once</strong>
+                  <small>$20 × 10 cards</small>
+                </div>
+              </div>
+              <p>That is $600 saved in year one and $800 every year after.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="stats-band" aria-label="Results">
+        <div className="container stats-grid">
+          {stats.map((stat) => (
+            <div key={stat.label}>
+              <strong>{stat.value}</strong>
+              <span>{stat.label}</span>
+            </div>
           ))}
         </div>
       </section>
 
-      <section className="panel closing-cta" id="demo">
-        <div className="closing-copy">
-          <p className="eyebrow">Get Started</p>
-          <h2>Upgrade from paper cards to a smarter first impression</h2>
-          <p>
-            Anywhere in the U.S.? We can run a 5-minute remote demo and help
-            you choose the right setup, whether you are solo or scaling a team.
-          </p>
-          <p className="cta-line">Schedule a brief consultation to review your setup options.</p>
-          <div className="hero-actions">
-            <Link
-              className="btn btn-primary"
-              to="/contact"
-              onClick={() => trackEvent('contact_click', { source: 'cta' })}
-            >
-              Contact Aura Tap
-            </Link>
-            <Link className="btn btn-secondary" to="/pricing">
-              View Pricing
+      <section className="section">
+        <div className="container">
+          <div className="section-heading section-heading-row">
+            <div>
+              <p className="eyebrow">Reviews</p>
+              <h2>What our clients say.</h2>
+            </div>
+            <Link className="text-link" to="/testimonials">
+              Read all reviews <span aria-hidden="true">→</span>
             </Link>
           </div>
+          <div className="testimonial-grid">
+            {TESTIMONIALS.slice(0, 3).map((testimonial) => (
+              <TestimonialCard key={testimonial.author} testimonial={testimonial} />
+            ))}
+          </div>
         </div>
-        <figure className="closing-visual-placeholder closing-showcase-frame">
-          <img
-            src="/product-showcase.png"
-            alt="Aura Tap product showcase"
-            className="closing-showcase-image"
-          />
-          <figcaption>Professional presentation that closes the conversation.</figcaption>
-        </figure>
       </section>
 
-      {showRoiPage && (
-        <section className="roi-overlay" aria-labelledby="roi-heading" role="dialog">
-          <article className="roi-page panel">
-            <div className="roi-top">
-              <p className="eyebrow">ROI Analysis</p>
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={() => setShowRoiPage(false)}
-              >
-                Close ROI
-              </button>
+      <section className="section section-alt">
+        <div className="container split split-faq">
+          <div>
+            <p className="eyebrow">FAQ</p>
+            <h2>Frequently asked questions.</h2>
+            <p className="muted">
+              Can&apos;t find what you&apos;re looking for?{' '}
+              <Link className="text-link" to="/contact">Contact our team</Link> or call{' '}
+              <a className="text-link" href={`tel:${PHONE_NUMBER}`}>{PHONE_DISPLAY}</a>.
+            </p>
+          </div>
+          <div className="faq-list">
+            {faqs.map((item) => (
+              <details key={item.q} className="faq-item">
+                <summary>{item.q}</summary>
+                <p>{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="container">
+          <div className="cta-panel">
+            <div className="cta-panel-copy">
+              <h2>Ready to replace your paper cards?</h2>
+              <p>
+                Wherever you are in the U.S., we&apos;ll run a 5-minute remote demo
+                and help you choose the right setup for you or your team.
+              </p>
+              <div className="button-row">
+                <BookDemoLink source="cta" className="btn btn-inverse btn-lg">
+                  Book a Demo
+                </BookDemoLink>
+                <a className="btn btn-outline-inverse btn-lg" href={`tel:${PHONE_NUMBER}`}>
+                  Call {PHONE_DISPLAY}
+                </a>
+              </div>
             </div>
-            <h2 id="roi-heading">ROI Snapshot</h2>
-            <p className="math">
-              Paper: $40 x 10 employees x 2 orders/year =
-              <strong> $800/year</strong>
-            </p>
-            <p className="math">
-              Aura Tap: $20 x 10 cards one-time = <strong>$200 total</strong>
-            </p>
-            <p className="savings">
-              Year-one savings: <strong>$600</strong>. Ongoing annual savings:
-              <strong> $800</strong>.
-            </p>
-          </article>
-        </section>
-      )}
-
-      <section className="panel warranty-disclaimer">
-        <p>
-          &#127775; All Aura Tap devices come with a <strong>12-month warranty</strong> against manufacturing defects.{' '}
-          <Link to="/warranty">View full warranty details &rarr;</Link>
-        </p>
+            <img
+              src="/images/product-showcase.webp"
+              alt="Aura wristband being tapped against a phone that shows a contact profile"
+              width="1600"
+              height="1067"
+              loading="lazy"
+            />
+          </div>
+        </div>
       </section>
-
-      <Footer />
     </>
   )
 }
 
 function HowItWorksPage() {
-  const howItWorks = [
-    {
-      step: '01',
-      title: 'Tap or scan in seconds',
-      text: 'Someone taps your Aura device or scans the QR code and lands on your digital profile instantly.',
-    },
-    {
-      step: '02',
-      title: 'Show your best links',
-      text: 'Display contact info, social links, listings, booking links, portfolio pages, and more in one clean profile.',
-    },
-    {
-      step: '03',
-      title: 'Update without reprinting',
-      text: 'Change your details later without buying new cards every time your role, phone, or links change.',
-    },
-  ]
-
   return (
     <>
       <SubpageHero
@@ -723,14 +777,13 @@ function HowItWorksPage() {
         title="A Simple Three-Step Process"
         subtitle="This page outlines the complete user flow from initial tap to profile engagement and ongoing updates."
         chips={['Three simple steps', 'Update anytime', 'No reprinting needed']}
-        mediaImageSrc="/products-howto.png"
+        mediaImageSrc="/images/products-howto.webp"
         mediaImageAlt="Aura NFC cards and wristbands displayed on a wooden surface"
-        mediaText=""
       />
 
       <section className="panel how-it-works">
         <div className="process-grid">
-          {howItWorks.map((item) => (
+          {HOW_IT_WORKS_STEPS.map((item) => (
             <article className="process-card" key={item.step}>
               <p className="process-step">{item.step}</p>
               <h3>{item.title}</h3>
@@ -756,7 +809,7 @@ function HowItWorksPage() {
         </div>
         <figure className="tap-demo-photo-frame" aria-label="Aura Tap profile preview after card tap">
           <img
-            src="/jay-profile-preview.png"
+            src="/images/jay-profile-preview.webp"
             alt="Aura card and phone profile preview after tapping"
             className="tap-demo-photo"
           />
@@ -765,52 +818,11 @@ function HowItWorksPage() {
           </figcaption>
         </figure>
       </section>
-
-      <Footer />
     </>
   )
 }
 
 function TestimonialsPage() {
-  const testimonials = [
-    {
-      text: 'Aura Tap transformed how we network at events. Our team closes 40% more leads since we switched from paper cards.',
-      author: 'Sarah Martinez',
-      company: 'SLO Real Estate Group',
-      role: 'Sales Director',
-    },
-    {
-      text: 'Setup was a breeze. Within an hour, all 15 of our team members had their cards configured and ready to go.',
-      author: 'James Chen',
-      company: '805 Home Services',
-      role: 'Owner',
-    },
-    {
-      text: 'The wristbands are perfect for our field crews. Clients can save contact info instantly without fumbling for a card.',
-      author: 'Miguel Rodriguez',
-      company: 'Central Coast Plumbing',
-      role: 'Operations Manager',
-    },
-    {
-      text: 'As a solo photographer, the Aura Card made me look premium and helped me get more callbacks after every shoot.',
-      author: 'Alyssa Grant',
-      company: 'Independent Creative',
-      role: 'Freelance Photographer',
-    },
-    {
-      text: 'I am a solo realtor, and this made sharing my listings and contact details way faster at open houses.',
-      author: 'Derrick Sloan',
-      company: 'Independent Professional',
-      role: 'Solo Realtor',
-    },
-    {
-      text: 'As a one-person mobile detailer, the card helps clients save my info instantly and book repeat services easier.',
-      author: 'Nina Lopez',
-      company: 'Independent Professional',
-      role: 'Mobile Detail Specialist',
-    },
-  ]
-
   return (
     <>
       <SubpageHero
@@ -818,26 +830,17 @@ function TestimonialsPage() {
         title="Client Testimonials"
         subtitle="Verified feedback from professionals, teams, and businesses nationwide using Aura Tap in daily operations."
         chips={['180+ clients served', 'Real customer stories', 'Nationwide service']}
-        mediaImageSrc="/product-test.png"
+        mediaImageSrc="/images/product-test.webp"
         mediaImageAlt="Aura Tap products used by real clients"
-        mediaText=""
       />
 
-      <section className="testimonials">
-        <div className="testimonials-grid">
-          {testimonials.map((testimonial) => (
-            <article key={testimonial.author} className="panel testimonial">
-              <p className="testimonial-text">"{testimonial.text}"</p>
-              <p className="testimonial-author">{testimonial.author}</p>
-              <p className="testimonial-role">
-                {testimonial.company} | {testimonial.role}
-              </p>
-            </article>
+      <section className="page-section">
+        <div className="testimonial-grid">
+          {TESTIMONIALS.map((testimonial) => (
+            <TestimonialCard key={testimonial.author} testimonial={testimonial} />
           ))}
         </div>
       </section>
-
-      <Footer />
     </>
   )
 }
@@ -847,38 +850,32 @@ function SubpageHero({
   title,
   subtitle,
   chips = [],
-  mediaLabel = 'Visual Placeholder',
-  mediaText = 'Add a relevant image or screenshot here.',
+  mediaText = '',
   mediaImageSrc,
   mediaImageAlt = '',
 }) {
   return (
-    <section className="panel subpage-hero">
-      <div className="subpage-hero-copy">
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-        <p>{subtitle}</p>
-        {chips.length > 0 && (
-          <div className="subpage-chip-row">
-            {chips.map((chip) => (
-              <span key={chip}>{chip}</span>
-            ))}
-          </div>
-        )}
-      </div>
-      <aside className={`subpage-hero-media${mediaImageSrc ? ' has-media-image' : ''}`}>
+    <section className={`page-hero${mediaImageSrc ? ' has-media' : ''}`}>
+      <div className="container page-hero-grid">
+        <div className="page-hero-copy">
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+          <p className="lead">{subtitle}</p>
+          {chips.length > 0 && (
+            <ul className="hero-assurances">
+              {chips.map((chip) => (
+                <li key={chip}><CheckIcon /> {chip}</li>
+              ))}
+            </ul>
+          )}
+        </div>
         {mediaImageSrc ? (
-          <figure className="subpage-hero-media-figure">
-            <img src={mediaImageSrc} alt={mediaImageAlt} className="subpage-hero-media-image" />
+          <figure className="page-hero-media">
+            <img src={mediaImageSrc} alt={mediaImageAlt} />
             {mediaText ? <figcaption>{mediaText}</figcaption> : null}
           </figure>
-        ) : (
-          <>
-            <strong>{mediaLabel}</strong>
-            <p>{mediaText}</p>
-          </>
-        )}
-      </aside>
+        ) : null}
+      </div>
     </section>
   )
 }
@@ -957,24 +954,7 @@ function ContactPage() {
           'Nationwide support',
           'Setup guidance included',
         ]}
-        mediaLabel="Contact visual placeholder"
-        mediaText="Drop in a team photo, product demo shot, or behind-the-scenes setup image."
       />
-
-      <section className="panel contact-intro">
-        <div className="contact-channels">
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
-          <a
-            href={BOOKING_URL}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => trackEvent('book_demo_click', { source: 'contact_page' })}
-          >
-            Preferred Booking Path
-          </a>
-          <span className="contact-response-chip">Average response: same day</span>
-        </div>
-      </section>
 
       <section className="panel contact-layout">
         <form className="lead-form" onSubmit={onSubmit}>
@@ -1028,32 +1008,13 @@ function ContactPage() {
             <li>We recommend your ideal card/wristband mix.</li>
             <li>We schedule setup and activation support.</li>
           </ol>
-          <div className="contact-side-placeholder">
-            <strong>Media placeholder</strong>
-            <p>Add a contact/support image for social proof.</p>
+          <div className="contact-side-direct">
+            <p>Prefer to talk it through?</p>
+            <a href={`tel:${PHONE_NUMBER}`}>{PHONE_DISPLAY}</a>
+            <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
           </div>
         </aside>
       </section>
-
-      <section className="panel contact-next-steps">
-        <article>
-          <p className="step-kicker">01</p>
-          <h3>Discovery Call</h3>
-          <p>We clarify your goals, team workflow, and preferred device type.</p>
-        </article>
-        <article>
-          <p className="step-kicker">02</p>
-          <h3>Setup Plan</h3>
-          <p>We map profile fields, links, and rollout details for your team.</p>
-        </article>
-        <article>
-          <p className="step-kicker">03</p>
-          <h3>Launch Support</h3>
-          <p>We help your team activate cards and start using them confidently.</p>
-        </article>
-      </section>
-
-      <Footer />
     </>
   )
 }
@@ -1066,7 +1027,7 @@ function PricingPage() {
         title="Clear Pricing. Strong Return on Investment."
         subtitle="Simple one-time pricing designed for solo operators, growing teams, and enterprise deployments."
         chips={['One-time purchase', '$99 setup included with bundles', 'No recurring platform fees']}
-        mediaImageSrc="/product-pricing.png"
+        mediaImageSrc="/images/product-pricing.webp"
         mediaImageAlt="Aura Tap pricing showcase"
         mediaText="Professional-grade NFC cards and wristbands prepared for scalable team deployment."
       />
@@ -1139,8 +1100,6 @@ function PricingPage() {
           for your organization.
         </p>
       </section>
-
-      <Footer />
     </>
   )
 }
@@ -1153,9 +1112,8 @@ function WarrantyPage() {
         title="Coverage Built for Confidence"
         subtitle="Every Aura Tap device includes a 12-month limited warranty for manufacturing faults."
         chips={['12 months coverage', 'Fast claim review', 'Replacement support']}
-        mediaImageSrc="/product-warranty.png"
+        mediaImageSrc="/images/product-warranty.webp"
         mediaImageAlt="Aura Tap product warranty coverage"
-        mediaText=""
       />
 
       <section className="panel warranty-highlight-grid">
@@ -1175,7 +1133,7 @@ function WarrantyPage() {
 
       <section className="panel warranty-panel">
         <div className="warranty-badge">12-Month Warranty</div>
-        <h1>Simple, Clear Warranty Process</h1>
+        <h2 className="warranty-title">Simple, Clear Warranty Process</h2>
         <p>
           Every Aura Tap NFC card and wristband includes a <strong>12-month limited warranty</strong>{' '}
           for manufacturing defects. Below is exactly what is covered and how to file a claim.
@@ -1208,9 +1166,9 @@ function WarrantyPage() {
           with the following:
         </p>
         <ul className="warranty-list">
-          <li>&#10148; Your order number</li>
-          <li>&#10148; A brief description of the fault</li>
-          <li>&#10148; A photo of the defective device if possible</li>
+          <li>Your order number</li>
+          <li>A brief description of the fault</li>
+          <li>A photo of the defective device if possible</li>
         </ul>
 
         <div className="warranty-timeline">
@@ -1238,7 +1196,6 @@ function WarrantyPage() {
           Coverage starts on the purchase date. Claims submitted after 12 months are not eligible.
         </p>
       </section>
-      <Footer />
     </>
   )
 }
@@ -1251,8 +1208,6 @@ function PrivacyPage() {
         title="Privacy Policy"
         subtitle="How Aura Tap collects, uses, and protects your information."
         chips={['No data resale', 'Clear retention policy', 'Request access or deletion']}
-        mediaLabel="Policy visual placeholder"
-        mediaText="Use a trust/security themed image for this area."
       />
 
       <section className="legal-layout">
@@ -1347,7 +1302,6 @@ function PrivacyPage() {
         </p>
         </section>
       </section>
-      <Footer />
     </>
   )
 }
@@ -1360,8 +1314,6 @@ function TermsPage() {
         title="Terms of Service"
         subtitle="Clear rules for orders, usage, support, and warranty terms."
         chips={['Transparent policy', 'California governing law', 'Direct support contact']}
-        mediaLabel="Terms visual placeholder"
-        mediaText="Use a contract/document themed image in this placeholder."
       />
 
       <section className="legal-layout">
@@ -1481,7 +1433,6 @@ function TermsPage() {
         </p>
         </section>
       </section>
-      <Footer />
     </>
   )
 }
@@ -1814,68 +1765,94 @@ function ChatWidget() {
           trackEvent('chat_opened', { isOpen: !isOpen })
           setIsOpen(!isOpen)
         }}
-        aria-label="Open chat"
+        aria-label={isOpen ? 'Close chat' : 'Open chat'}
       >
-        💬
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <path
+            d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H9l-4.2 3.6a.5.5 0 0 1-.8-.4V5.5z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
     </>
   )
 }
 
 function Footer() {
+  const columns = [
+    {
+      title: 'Product',
+      links: [
+        { to: '/how-it-works', label: 'How It Works' },
+        { to: '/pricing', label: 'Pricing' },
+        { to: '/testimonials', label: 'Reviews' },
+      ],
+    },
+    {
+      title: 'Support',
+      links: [
+        { to: '/contact', label: 'Contact Us' },
+        { to: '/warranty', label: 'Warranty' },
+        { to: '/member', label: 'Member Log In' },
+      ],
+    },
+    {
+      title: 'Legal',
+      links: [
+        { to: '/privacy', label: 'Privacy Policy' },
+        { to: '/terms', label: 'Terms of Service' },
+      ],
+    },
+  ]
+
   return (
-    <footer className="panel footer">
-      <div className="footer-brand">
-        <p className="footer-mark" aria-label="Aura Tap">
-          <img src="/auralogo.png" alt="Aura Tap" className="footer-logo" />
-          <span className="footer-wordmark">AURA TAP</span>
-          <span className="sr-only">Aura Tap</span>
-        </p>
-        <p className="footer-blurb">
-          Premium NFC cards and wristbands for faster, cleaner networking.
-        </p>
-        <p>Service Area: {BUSINESS_ADDRESS}</p>
-        <div className="footer-chip-row" aria-label="Footer trust highlights">
-          <span>No monthly fees</span>
-          <span>Fast setup</span>
-          <span>12-month warranty</span>
+    <footer className="site-footer">
+      <div className="container site-footer-grid">
+        <div className="site-footer-brand">
+          <BrandMark />
+          <p>Premium NFC cards and wristbands for faster, cleaner networking.</p>
+          <p className="site-footer-contact">
+            <a href={`tel:${PHONE_NUMBER}`}>{PHONE_DISPLAY}</a>
+            <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+            <span>Service area: {BUSINESS_ADDRESS}</span>
+          </p>
         </div>
+
+        {columns.map((column) => (
+          <nav key={column.title} className="site-footer-column" aria-label={column.title}>
+            <h2>{column.title}</h2>
+            <ul>
+              {column.links.map((link) => (
+                <li key={link.to}>
+                  <Link to={link.to}>{link.label}</Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
       </div>
-      <div className="footer-nav-group">
-        <div className="footer-links">
-          <a href={`mailto:${CONTACT_EMAIL}`}>Email</a>
-          <a href={`tel:${PHONE_NUMBER}`}>Call</a>
-          <Link to="/pricing">Pricing</Link>
-          <Link to="/contact">Contact</Link>
-        </div>
-        <div className="footer-links">
-          <Link to="/privacy">Privacy Policy</Link>
-          <Link to="/terms">Terms</Link>
-          <Link to="/warranty">Warranty</Link>
-          <Link to="/member" className="footer-admin-link">Member</Link>
-          <Link to="/admin" className="footer-admin-link">Admin</Link>
-        </div>
+
+      <div className="container site-footer-bottom">
+        <p>© {new Date().getFullYear()} Aura Tap. All rights reserved.</p>
+        <p>12-month warranty · No monthly fees · Setup included</p>
       </div>
     </footer>
   )
 }
 
-function MobileStickyCta() {
-  return (
-    <div className="mobile-sticky-cta" aria-label="Quick actions">
-      <a href={`tel:${PHONE_NUMBER}`} className="mobile-sticky-link mobile-sticky-link-secondary">
-        Call Now
-      </a>
-      <a
-        href={BOOKING_URL}
-        target="_blank"
-        rel="noreferrer"
-        className="mobile-sticky-link mobile-sticky-link-primary"
-      >
-        Book Demo
-      </a>
-    </div>
-  )
+function ScrollToTop() {
+  const { pathname, hash } = useLocation()
+
+  useEffect(() => {
+    if (!hash) {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+    }
+  }, [pathname, hash])
+
+  return null
 }
 
 function AdminLoginPage({ onAuthenticated }) {
@@ -1914,7 +1891,7 @@ function AdminLoginPage({ onAuthenticated }) {
   }
 
   return (
-    <div className="site-shell">
+    <div className="app-shell">
       <div className="admin-login-container">
         <div className="admin-login-box">
           <h1>Aura Tap Admin Access</h1>
@@ -2115,7 +2092,7 @@ function AdminPageContent({ onSessionExpired }) {
   }, [messages])
 
   return (
-    <div className="site-shell admin-page">
+    <div className="app-shell admin-page">
       <header className="panel admin-header">
         <p className="brand">Aura Tap Admin Panel</p>
         <div className="admin-header-actions">
@@ -2274,7 +2251,7 @@ function AdminPage() {
 
   if (authState === 'checking') {
     return (
-      <div className="site-shell">
+      <div className="app-shell">
         <section className="panel">
           <p>Checking admin session...</p>
         </section>
@@ -2359,7 +2336,7 @@ function MemberAuthPage({ onAuthenticated }) {
   }
 
   return (
-    <div className="site-shell member-page">
+    <div className="app-shell member-page">
       <section className="panel member-auth-card">
         <p className="eyebrow">Aura Tap Member Portal</p>
         <h1>{mode === 'login' ? 'Member Login' : 'Create Member Account'}</h1>
@@ -2580,7 +2557,7 @@ function MemberDashboard({ onLogout }) {
 
   if (isLoading || !profile) {
     return (
-      <div className="site-shell member-page">
+      <div className="app-shell member-page">
         <section className="panel member-auth-card">
           <p>Loading member profile...</p>
         </section>
@@ -2591,7 +2568,7 @@ function MemberDashboard({ onLogout }) {
   const publicUrl = `${window.location.origin}/${profile.slug}`
 
   return (
-    <div className="site-shell member-page">
+    <div className="app-shell member-page">
       <section className="panel member-dashboard-card">
         <div className="member-dashboard-header">
           <div>
@@ -2716,7 +2693,7 @@ function MemberPortalPage() {
 
   if (authState === 'checking') {
     return (
-      <div className="site-shell member-page">
+      <div className="app-shell member-page">
         <section className="panel member-auth-card">
           <p>Checking member session...</p>
         </section>
@@ -2744,23 +2721,35 @@ function App() {
     )
   }
 
+  // The admin panel is a staff tool with its own header, so it skips the marketing chrome.
+  if (normalizedPath === 'admin') {
+    return (
+      <div className="site-shell">
+        <ScrollToTop />
+        <AdminPage />
+      </div>
+    )
+  }
+
   return (
     <div className="site-shell">
+      <ScrollToTop />
       <SiteHeader />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/how-it-works" element={<HowItWorksPage />} />
-        <Route path="/testimonials" element={<TestimonialsPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
-        <Route path="/terms" element={<TermsPage />} />
-        <Route path="/warranty" element={<WarrantyPage />} />
-        <Route path="/member" element={<MemberPortalPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/:profileSlug" element={<AuraProfilePage />} />
-      </Routes>
-      <MobileStickyCta />
+      <main className="site-main">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/how-it-works" element={<HowItWorksPage />} />
+          <Route path="/testimonials" element={<TestimonialsPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/warranty" element={<WarrantyPage />} />
+          <Route path="/member" element={<MemberPortalPage />} />
+          <Route path="/:profileSlug" element={<AuraProfilePage />} />
+        </Routes>
+      </main>
+      <Footer />
       <ChatWidget />
     </div>
   )
